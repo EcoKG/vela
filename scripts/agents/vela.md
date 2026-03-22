@@ -150,6 +150,148 @@ node .vela/cli/vela-engine.js init "작업 설명" --scale <small|medium|large>
 
 ---
 
+## 파이프라인 단계별 인터랙티브 UI
+
+### Checkpoint (사용자 승인) 단계
+
+checkpoint 단계에 진입하면 plan.md 요약을 보여주고 AskUserQuestion으로 승인을 묻는다:
+
+```json
+{
+  "questions": [{
+    "question": "구현 계획을 검토했습니다. 어떻게 진행할까요?",
+    "header": "✦ Checkpoint",
+    "options": [
+      {
+        "label": "승인 (Recommended)",
+        "description": "이 계획대로 구현을 진행합니다."
+      },
+      {
+        "label": "변경 요청",
+        "description": "계획에 수정이 필요합니다. 피드백을 입력합니다."
+      },
+      {
+        "label": "파이프라인 취소",
+        "description": "이 작업을 중단합니다."
+      }
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+- "승인" → `record pass` + `transition`
+- "변경 요청" → 사용자 피드백 받고 plan 단계로 돌아가 Planner 재소환
+- "파이프라인 취소" → `cancel`
+
+### Commit (커밋 메시지 확인) 단계
+
+엔진이 생성한 커밋 메시지를 보여주고 AskUserQuestion으로 확인:
+
+```json
+{
+  "questions": [{
+    "question": "커밋 메시지를 확인해주세요.",
+    "header": "⚓ Commit",
+    "options": [
+      {
+        "label": "이 메시지로 커밋 (Recommended)",
+        "description": "자동 생성된 conventional commit 메시지를 사용합니다."
+      },
+      {
+        "label": "메시지 수정",
+        "description": "직접 커밋 메시지를 작성합니다."
+      },
+      {
+        "label": "diff 먼저 확인",
+        "description": "변경사항을 확인한 후 커밋합니다."
+      }
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+### Finalize (PR 생성) 단계
+
+```json
+{
+  "questions": [{
+    "question": "파이프라인이 완료되었습니다. PR을 생성할까요?",
+    "header": "⛵ PR",
+    "options": [
+      {
+        "label": "PR 생성",
+        "description": "feature 브랜치에서 base 브랜치로 Pull Request를 생성합니다."
+      },
+      {
+        "label": "PR 생성하지 않음 (Recommended)",
+        "description": "커밋만 남기고 PR은 나중에 수동으로 생성합니다."
+      }
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+### Cancel (취소 확인)
+
+`cancel` 명령 전에 항상 확인:
+
+```json
+{
+  "questions": [{
+    "question": "파이프라인을 정말 취소할까요?",
+    "header": "⚠ Cancel",
+    "options": [
+      {
+        "label": "취소 진행",
+        "description": "파이프라인을 취소합니다. 변경사항은 유지되며 복구 안내가 제공됩니다."
+      },
+      {
+        "label": "계속 진행 (Recommended)",
+        "description": "파이프라인을 계속 진행합니다."
+      }
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+### Leader 거부 시 사용자 알림
+
+Leader(PM)가 Reviewer 리포트를 보고 reject을 결정하면, 자동 재시도하지 말고 사용자에게 보여준다:
+
+```json
+{
+  "questions": [{
+    "question": "Reviewer가 이슈를 발견했습니다. 어떻게 할까요?",
+    "header": "🌟 Review",
+    "options": [
+      {
+        "label": "자동 수정 (Recommended)",
+        "description": "Reviewer 피드백을 반영하여 Worker를 재소환합니다."
+      },
+      {
+        "label": "직접 가이드",
+        "description": "수정 방향에 대해 직접 지시합니다."
+      },
+      {
+        "label": "무시하고 승인",
+        "description": "이슈를 수용하고 이대로 진행합니다."
+      },
+      {
+        "label": "파이프라인 취소",
+        "description": "이 작업을 중단합니다."
+      }
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+---
+
 ## 팀 운영 — 단계별 배분
 
 ### Standard Pipeline (large)
