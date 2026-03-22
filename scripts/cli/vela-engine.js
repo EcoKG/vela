@@ -40,6 +40,7 @@ const commands = {
   record: cmdRecord,
   'team-dispatch': cmdTeamDispatch,
   'team-record': cmdTeamRecord,
+  'sub-transition': cmdSubTransition,
   branch: cmdBranch,
   commit: cmdCommit,
   cancel: cmdCancel
@@ -180,6 +181,8 @@ function cmdState() {
     remaining_steps: state.steps.filter(s => !state.completed_steps.includes(s)),
     revisions: state.revisions,
     execute_team: state.execute_team,
+    sub_phase: state.sub_phases ? state.sub_phases[state.current_step] || null : null,
+    git: state.git || null,
     artifact_dir: state._artifactDir
   });
 }
@@ -252,6 +255,17 @@ function cmdTransition() {
   // Backward compat: also set execute_team for execute step
   if (nextStep.id === 'execute' && nextStep.team) {
     state.execute_team = state.step_teams[nextStep.id];
+  }
+
+  // Initialize sub-phase tracking if step has sub_phases and tracking enabled
+  if (nextStep.sub_phases && nextStep.sub_phase_tracking) {
+    if (!state.sub_phases) state.sub_phases = {};
+    state.sub_phases[nextStep.id] = {
+      phases: nextStep.sub_phases,
+      current_index: 0,
+      current_phase: nextStep.sub_phases[0],
+      completed_phases: []
+    };
   }
 
   writeJSON(state._path, cleanState(state));
@@ -456,6 +470,55 @@ function cmdTeamRecord() {
     worker_status: team.worker_status,
     leader_status: team.leader_status,
     message
+  });
+}
+
+function cmdSubTransition() {
+  const state = findActiveState();
+  if (!state) {
+    return output({ ok: false, error: 'No active pipeline.' });
+  }
+
+  const currentStep = state.current_step;
+  if (!state.sub_phases || !state.sub_phases[currentStep]) {
+    return output({ ok: false, error: `Step "${currentStep}" does not have sub-phase tracking.` });
+  }
+
+  const sp = state.sub_phases[currentStep];
+  const currentIdx = sp.current_index;
+
+  if (currentIdx >= sp.phases.length - 1) {
+    return output({
+      ok: true,
+      command: 'sub-transition',
+      step: currentStep,
+      completed: true,
+      message: `All sub-phases completed for "${currentStep}".`
+    });
+  }
+
+  // Mark current sub-phase as completed
+  if (!sp.completed_phases.includes(sp.current_phase)) {
+    sp.completed_phases.push(sp.current_phase);
+  }
+
+  // Advance
+  const previousPhase = sp.current_phase;
+  sp.current_index = currentIdx + 1;
+  sp.current_phase = sp.phases[sp.current_index];
+
+  state.updated_at = new Date().toISOString();
+  writeJSON(state._path, cleanState(state));
+
+  output({
+    ok: true,
+    command: 'sub-transition',
+    step: currentStep,
+    previous_phase: previousPhase,
+    current_phase: sp.current_phase,
+    remaining: sp.phases.slice(sp.current_index + 1),
+    completed: false,
+    message: `Sub-phase advanced: ${previousPhase} → ${sp.current_phase}`
   });
 }
 
@@ -796,12 +859,43 @@ function checkExitGate(stepDef, state) {
           missing.push(gate);
         }
         break;
+      case 'plan_architecture_complete':
+        // Standard pipeline: plan.md must contain architecture sections with substance
+        if (artifactDir && fs.existsSync(path.join(artifactDir, 'plan.md'))) {
+          const planContent = fs.readFileSync(path.join(artifactDir, 'plan.md'), 'utf-8');
+          const requiredSections = ['## Architecture', '## Class Specification', '## Test Strategy'];
+          for (const section of requiredSections) {
+            if (!planContent.includes(section)) {
+              missing.push(`plan_missing_section:${section}`);
+            } else {
+              // Check section has substance (not just a header)
+              const sectionIdx = planContent.indexOf(section);
+              const nextSectionIdx = planContent.indexOf('\n## ', sectionIdx + section.length);
+              const sectionContent = nextSectionIdx > 0
+                ? planContent.substring(sectionIdx + section.length, nextSectionIdx)
+                : planContent.substring(sectionIdx + section.length);
+              if (sectionContent.trim().length < 200) {
+                missing.push(`plan_section_too_short:${section}`);
+              }
+            }
+          }
+        }
+        break;
       case 'leader_approved':
         // Generic: check if the current step's team leader has approved
         if (state.step_teams && state.step_teams[state.current_step]) {
           const t = state.step_teams[state.current_step];
           if (t.leader_status !== 'approved') {
             missing.push(`leader_approval_${state.current_step}`);
+          }
+        }
+        break;
+      case 'leader_review_exists':
+        // Leader must write review.md before approve is accepted
+        if (artifactDir) {
+          const reviewPath = path.join(artifactDir, `review-${state.current_step}.md`);
+          if (!fs.existsSync(reviewPath)) {
+            missing.push(`leader_review_missing:review-${state.current_step}.md`);
           }
         }
         break;

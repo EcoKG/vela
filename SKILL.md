@@ -123,8 +123,72 @@ node .vela/cli/vela-engine.js dispatch --role ROLE  # 에이전트 스펙 조회
 node .vela/cli/vela-engine.js record pass           # 결과 기록
 node .vela/cli/vela-engine.js branch                # 브랜치 생성 (branch 단계)
 node .vela/cli/vela-engine.js commit                # 변경사항 커밋 (commit 단계)
+node .vela/cli/vela-engine.js sub-transition         # execute sub-phase 전진
 node .vela/cli/vela-engine.js cancel                # 파이프라인 취소 (복구 안내 포함)
 ```
+
+---
+
+## 아키텍처 기반 개발 (Standard Pipeline)
+
+Standard 파이프라인에서는 추상적 원칙("Clean Architecture를 따라라")이 아닌
+**구체적 설계 명세서**를 기반으로 개발한다.
+
+### Plan 단계 — 구체적 명세서 작성
+
+Planner는 plan.md에 반드시 다음 섹션을 포함해야 한다.
+**섹션이 없거나 200bytes 미만이면 엔진이 transition을 차단한다.**
+
+```markdown
+## Architecture
+레이어 구조, 의존성 방향, 모듈 분리 설계
+
+## Class Specification
+구체적 인터페이스, 클래스, 메서드 정의:
+
+Interface: ProductRepository
+  - findById(id: string): Promise<Product>
+  - save(product: Product): Promise<void>
+
+Class: CreateProductUseCase
+  - constructor(repo: ProductRepository)
+  - execute(command: CreateProductCommand): Promise<Product>
+
+## Test Strategy
+테스트 케이스 목록:
+- "should create product with valid data"
+- "should throw when name is empty"
+```
+
+이 명세서는 Executor에게 "설계도"로 전달된다.
+추상적 원칙이 아닌 구체적 스펙이므로 무시하기 어렵다.
+
+### Execute 단계 — TDD Sub-Phase
+
+Standard 파이프라인의 execute는 세 개의 sub-phase를 순서대로 진행한다:
+
+```
+test-write (Red)    → 테스트 먼저 작성
+implement (Green)   → 테스트 통과하는 코드 작성
+refactor (Refactor) → 구조 정리, 아키텍처 정렬
+```
+
+```bash
+# sub-phase 확인
+node .vela/cli/vela-engine.js state
+
+# sub-phase 전진
+node .vela/cli/vela-engine.js sub-transition
+```
+
+### Leader 검증 — 명세서 대조
+
+Leader는 추상적 "괜찮은가?"가 아니라 **구체적 대조**를 수행한다:
+- "plan.md의 Class Specification과 실제 구현이 일치하는가?"
+- "Test Strategy의 테스트 케이스가 실제로 구현되었는가?"
+
+Leader는 approve 전에 **`review-execute.md`** 를 artifact에 작성해야 한다.
+이 파일이 없으면 엔진이 transition을 차단한다.
 
 ---
 

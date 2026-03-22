@@ -35,12 +35,16 @@
           "actor": "agent",
           "mode": "write",
           "entry_gate": ["research_md_exists"],
-          "exit_gate": ["plan_md_exists", "leader_approved"],
+          "exit_gate": ["plan_md_exists", "plan_architecture_complete", "leader_approved"],
           "artifacts": ["plan.md"],
           "max_revisions": 3,
           "team": {
             "worker_role": "planner",
             "reviewer_role": "leader"
+          },
+          "architecture": {
+            "required_sections": ["## Architecture", "## Class Specification", "## Test Strategy"],
+            "min_section_bytes": 200
           }
         },
         {
@@ -86,14 +90,16 @@
           "actor": "agent",
           "mode": "readwrite",
           "entry_gate": ["branch_created"],
-          "exit_gate": ["implementation_complete"],
+          "exit_gate": ["implementation_complete", "leader_review_exists"],
           "artifacts": ["task-summary.md"],
           "max_revisions": 5,
-          "sub_phases": ["implement", "review", "qa"],
+          "sub_phases": ["test-write", "implement", "refactor"],
+          "sub_phase_tracking": true,
           "team": {
             "worker_role": "executor",
             "reviewer_role": "leader"
-          }
+          },
+          "leader_requires_review_md": true
         },
         {
           "id": "verify",
