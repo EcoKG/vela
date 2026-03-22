@@ -22,7 +22,8 @@ cp "$TMP/SKILL.md" "$SKILL_DIR/"
 cp -r "$TMP/scripts" "$SKILL_DIR/"
 cp -r "$TMP/templates" "$SKILL_DIR/"
 
-# Cleanup
+# Cleanup (chmod first to handle git's read-only files)
+chmod -R u+w "$TMP" 2>/dev/null || true
 rm -rf "$TMP"
 
 # Enable Agent Teams in global settings
