@@ -80,25 +80,25 @@ const VELA_HOOKS = [
     matcher: 'PreToolUse',
     hookId: 'vela-gate-keeper',
     script: 'vela-gate-keeper.js',
-    description: 'Vela Gate Keeper: R/W mode enforcement and sandbox control'
+    description: '⛵ Checking harbor clearance...'
   },
   {
     matcher: 'PreToolUse',
     hookId: 'vela-gate-guard',
     script: 'vela-gate-guard.js',
-    description: 'Vela Gate Guard: Pipeline compliance enforcement'
+    description: '🌟 Verifying navigation chart...'
   },
   {
     matcher: 'UserPromptSubmit',
     hookId: 'vela-orchestrator',
     script: 'vela-orchestrator.js',
-    description: 'Vela Orchestrator: Pipeline state injection per turn'
+    description: '🧭 Plotting current position...'
   },
   {
     matcher: 'PostToolUse',
     hookId: 'vela-tracker',
     script: 'vela-tracker.js',
-    description: 'Vela Tracker: Action tracking and cache updates'
+    description: '🔭 Logging voyage data...'
   }
 ];
 
@@ -200,6 +200,50 @@ function install() {
       padding: 2
     };
   }
+
+  // ─── Spinner Verbs (항해 테마) ───
+  settings.spinnerVerbs = {
+    mode: 'replace',
+    verbs: [
+      '⛵ Navigating', '🧭 Charting', '✦ Stargazing',
+      '🔭 Observing', '⚓ Anchoring', '🌟 Reading Stars',
+      '🧭 Plotting Course', '⛵ Setting Sail', '✦ Crossing Meridian',
+      '🔭 Scanning Horizon', '⛵ Catching Wind', '🌟 Trimming Sails'
+    ]
+  };
+
+  // ─── Spinner Tips (Vela 철학) ───
+  settings.spinnerTipsOverride = {
+    excludeDefault: true,
+    tips: [
+      '⛵ 별을 따라 항해하라 — 모든 파이프라인은 목적지로 향한다',
+      '🌟 품질은 지시가 아닌 구조로 강제된다',
+      '🧭 연구 → 계획 → 실행 → 검증 — 항로를 건너뛰지 마라',
+      '✦ Reviewer는 독립적으로 판단한다 — 편향 없는 별빛',
+      '⛵ Vela(돛자리)는 하늘에서 가장 큰 별자리의 일부였다',
+      '🔭 research.md → plan.md → approval.json — 항해의 기록',
+      '🧭 /vela:start 로 새로운 항해를 시작하세요',
+      '✦ 같은 세션에서 자기 작업을 검증하면 편향이 생긴다',
+      '⛵ Gate Keeper는 수문장, Gate Guard는 가이드라인',
+      '🌟 approval 없이는 다음 항구로 갈 수 없다',
+      '🔭 Agent Teams — 독립된 선원들이 각자의 관점으로 항해한다',
+      '⛵ 구조로 강제하라, 지시로 의존하지 마라'
+    ]
+  };
+
+  // ─── Startup Announcements ───
+  settings.companyAnnouncements = [
+    '⛵ Vela Engine — 별자리가 항해를 안내합니다. /vela:start 로 파이프라인을 시작하세요.',
+    '✦ Vela — 구조로 강제하고, 독립으로 검증하고, 기록으로 추적합니다.',
+    '🧭 Vela Pipeline — 연구 → 계획 → 실행 → 검증. 항로를 따르세요.',
+    '⛵ 모든 항해에는 별자리가 길을 안내합니다. Vela와 함께.'
+  ];
+
+  // ─── Attribution (커밋/PR에 Vela 참조) ───
+  settings.attribution = {
+    commit: '⛵ Managed by Vela Engine (https://github.com/EcoKG/vela)',
+    pr: '⛵ This PR was managed by [Vela Engine](https://github.com/EcoKG/vela) — pipeline-driven development governance.'
+  };
 
   writeSettings(settings);
 
