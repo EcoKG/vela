@@ -133,20 +133,26 @@ function install() {
       continue;
     }
 
-    // Initialize matcher array if needed
+    // Initialize event array if needed
     if (!settings.hooks[hook.matcher]) {
       settings.hooks[hook.matcher] = [];
     }
 
-    // Remove existing Vela hook with same ID
-    settings.hooks[hook.matcher] = settings.hooks[hook.matcher].filter(
-      h => !h.command || !h.command.includes(hook.hookId)
-    );
+    // Remove existing Vela hook entry with same ID
+    settings.hooks[hook.matcher] = settings.hooks[hook.matcher].filter(entry => {
+      if (!entry.hooks || !Array.isArray(entry.hooks)) return true;
+      return !entry.hooks.some(h => h.command && h.command.includes(hook.hookId));
+    });
 
-    // Add the hook
+    // Add the hook in correct Claude Code format:
+    // { matcher: "ToolName", hooks: [{ type: "command", command: "..." }] }
     settings.hooks[hook.matcher].push({
-      command: `node "${scriptPath}"`,
-      description: hook.description
+      matcher: hook.toolMatcher || '',
+      hooks: [{
+        type: 'command',
+        command: `node "${scriptPath}"`,
+        statusMessage: hook.description
+      }]
     });
 
     installed.push(hook.hookId);
@@ -206,7 +212,10 @@ function verify() {
     const scriptExists = fs.existsSync(scriptPath);
 
     const matcherHooks = settings.hooks?.[hook.matcher] || [];
-    const registered = matcherHooks.some(h => h.command && h.command.includes(hook.hookId));
+    const registered = matcherHooks.some(entry =>
+      entry.hooks && Array.isArray(entry.hooks) &&
+      entry.hooks.some(h => h.command && h.command.includes(hook.hookId))
+    );
 
     results.push({
       id: hook.hookId,
@@ -238,9 +247,10 @@ function uninstall() {
   if (settings.hooks) {
     for (const matcher of Object.keys(settings.hooks)) {
       const before = settings.hooks[matcher].length;
-      settings.hooks[matcher] = settings.hooks[matcher].filter(
-        h => !h.command || !h.command.includes(HOOK_PREFIX)
-      );
+      settings.hooks[matcher] = settings.hooks[matcher].filter(entry => {
+        if (!entry.hooks || !Array.isArray(entry.hooks)) return true;
+        return !entry.hooks.some(h => h.command && h.command.includes(HOOK_PREFIX));
+      });
       removedHooks += before - settings.hooks[matcher].length;
 
       if (settings.hooks[matcher].length === 0) {
@@ -292,14 +302,19 @@ function status() {
   const registered = [];
 
   if (settings.hooks) {
-    for (const [matcher, hooks] of Object.entries(settings.hooks)) {
-      for (const hook of hooks) {
-        if (hook.command && hook.command.includes(HOOK_PREFIX)) {
-          registered.push({
-            matcher,
-            command: hook.command,
-            description: hook.description || ''
-          });
+    for (const [event, entries] of Object.entries(settings.hooks)) {
+      for (const entry of entries) {
+        if (entry.hooks && Array.isArray(entry.hooks)) {
+          for (const hook of entry.hooks) {
+            if (hook.command && hook.command.includes(HOOK_PREFIX)) {
+              registered.push({
+                event,
+                matcher: entry.matcher || '',
+                command: hook.command,
+                description: hook.statusMessage || ''
+              });
+            }
+          }
         }
       }
     }
