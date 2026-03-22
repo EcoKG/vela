@@ -77,6 +77,9 @@ function cmdInit() {
     });
   }
 
+  // Clean up cancelled artifacts older than 24 hours
+  const cleaned = cleanupCancelledArtifacts(24);
+
   const type = getFlag('--type') || 'code';
   const scale = getFlag('--scale') || autoDetectScale(request);
   const pipelineType = scaleToPipeline(scale);
@@ -166,7 +169,9 @@ function cmdInit() {
     current_mode: firstStep.mode,
     artifact_dir: artifactDir,
     steps: steps.map(s => ({ id: s.id, name: s.name, mode: s.mode })),
-    message: `Pipeline initialized. Current step: ${firstStep.name} (${firstStep.mode} mode)`
+    cleaned_cancelled: cleaned,
+    message: `Pipeline initialized. Current step: ${firstStep.name} (${firstStep.mode} mode)` +
+      (cleaned > 0 ? ` (cleaned ${cleaned} cancelled artifact(s))` : '')
   });
 }
 
@@ -1015,6 +1020,68 @@ function getFlag(flag) {
 
 function hasFlag(flag) {
   return args.includes(flag);
+}
+
+// ─── Cleanup ───
+
+/**
+ * Remove cancelled pipeline artifact directories older than `hoursOld` hours.
+ * Only deletes directories where pipeline-state.json has status: "cancelled".
+ * Completed pipelines are preserved (they contain reports and history).
+ * Returns count of cleaned directories.
+ */
+function cleanupCancelledArtifacts(hoursOld) {
+  if (!fs.existsSync(ARTIFACTS_DIR)) return 0;
+
+  const cutoff = Date.now() - (hoursOld * 60 * 60 * 1000);
+  let cleaned = 0;
+
+  try {
+    const dateDirs = fs.readdirSync(ARTIFACTS_DIR)
+      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+
+    for (const dateDir of dateDirs) {
+      const datePath = path.join(ARTIFACTS_DIR, dateDir);
+      const slugDirs = fs.readdirSync(datePath).filter(d => {
+        try { return fs.statSync(path.join(datePath, d)).isDirectory(); }
+        catch { return false; }
+      });
+
+      for (const slugDir of slugDirs) {
+        const statePath = path.join(datePath, slugDir, 'pipeline-state.json');
+        if (!fs.existsSync(statePath)) continue;
+
+        try {
+          const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+
+          // Only clean cancelled (never completed — those have reports)
+          if (state.status !== 'cancelled') continue;
+
+          // Check age by file mtime
+          const mtime = fs.statSync(statePath).mtimeMs;
+          if (mtime > cutoff) continue;
+
+          // Safe to delete
+          const dirToRemove = path.join(datePath, slugDir);
+          fs.rmSync(dirToRemove, { recursive: true, force: true });
+          cleaned++;
+        } catch (e) {
+          // Skip on any error — don't corrupt other state
+          continue;
+        }
+      }
+
+      // Clean up empty date directories
+      try {
+        const remaining = fs.readdirSync(datePath);
+        if (remaining.length === 0) {
+          fs.rmdirSync(datePath);
+        }
+      } catch (e) {}
+    }
+  } catch (e) {}
+
+  return cleaned;
 }
 
 // ─── Git Helpers ───
