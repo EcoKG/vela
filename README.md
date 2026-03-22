@@ -224,27 +224,47 @@ node .vela/cli/vela-engine.js commit [--message "custom message"]
 
 ## 팀 메커니즘
 
-Research, Plan, Execute 단계에서 **팀 기반 실행**이 활성화된다.
+Research, Plan, Execute 단계에서 **3단계 검증 구조**가 활성화된다:
+Worker(작업) → Reviewer(독립 점검) → Leader(최종 판단).
 
 ### 팀 구성
 
-| 역할 | 단계 | 책임 |
-|------|------|------|
-| **PM** | 전 단계 | 파이프라인 조율, Worker/Leader 소환 |
-| **Vela-Researcher** | research | 프로젝트 분석, research.md 작성 |
-| **Vela-Planner** | plan | 구현 계획 수립, plan.md 작성 |
-| **Vela-Executor** | execute | 코드 구현, 소스코드 수정 |
-| **Vela-Leader** | research/plan/execute | 산출물 검토, 승인 또는 거부 |
+| 역할 | 실행 방식 | 책임 |
+|------|----------|------|
+| **PM** | 같은 세션 | 파이프라인 조율, 모든 역할 소환 |
+| **Vela-Researcher** | 같은 세션 | 프로젝트 분석, research.md 작성 |
+| **Vela-Planner** | 같은 세션 | 아키텍처 설계, 클래스 명세서, plan.md 작성 |
+| **Vela-Executor** | 같은 세션 | 코드 구현, 테스트 작성 |
+| **Vela-Reviewer** | **독립 subagent** | 산출물 품질 점검 — Worker의 맥락 없이 편향 없는 평가 |
+| **Vela-Leader** | 같은 세션 | Reviewer 리포트 기반 최종 approve/reject |
 
 ### 실행 루프
 
 ```
 PM → Worker 소환 (team-dispatch researcher/planner/executor)
-     → Worker 작업 수행
+     → Worker 작업 수행 (research.md / plan.md / 코드 수정)
+     → PM → Reviewer subagent 소환 (Agent 도구, 독립 컨텍스트)
+          → Reviewer: 산출물만 읽고 품질 리포트 생성 → review-{step}.md
      → PM → Leader 소환 (team-dispatch leader)
-     → Leader 검토: "이걸로 충분한가?"
-         ├─ approve → 단계 완료, 다음 단계로 전이
+     → Leader: Reviewer 리포트의 critical/high 이슈를 반드시 처리
+         ├─ approve (이슈 없거나 해결됨) → 단계 완료
          └─ reject + 피드백 → Worker 재소환 (iteration 증가)
+```
+
+### Reviewer Subagent 소환 방법
+
+PM이 Agent 도구로 Reviewer를 소환:
+
+```
+Agent 도구 사용:
+  prompt: "You are an INDEPENDENT ARCHITECTURE REVIEWER.
+           Read {artifact_path} and evaluate against
+           Clean Architecture, DDD, OOP, TDD.
+           Score each: Layer Separation, DDD Patterns, SOLID,
+           Test Strategy, Class Spec Completeness (각 X/5).
+           List issues by severity (critical/high/medium/low).
+           Save to {artifact_dir}/review-{step}.md.
+           Be HARSH and CRITICAL."
 ```
 
 ### 명령어
@@ -254,7 +274,7 @@ PM → Worker 소환 (team-dispatch researcher/planner/executor)
 node .vela/cli/vela-engine.js team-dispatch researcher|planner|executor
 node .vela/cli/vela-engine.js team-record researcher|planner|executor pass
 
-# Leader 검토
+# Leader 검토 (Reviewer 리포트 확인 후)
 node .vela/cli/vela-engine.js team-dispatch leader
 node .vela/cli/vela-engine.js team-record leader approve
 node .vela/cli/vela-engine.js team-record leader reject --feedback "피드백 내용"

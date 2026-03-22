@@ -181,14 +181,48 @@ node .vela/cli/vela-engine.js state
 node .vela/cli/vela-engine.js sub-transition
 ```
 
-### Leader 검증 — 명세서 대조
+### 2단계 검증 — Reviewer Subagent → Leader
 
-Leader는 추상적 "괜찮은가?"가 아니라 **구체적 대조**를 수행한다:
-- "plan.md의 Class Specification과 실제 구현이 일치하는가?"
-- "Test Strategy의 테스트 케이스가 실제로 구현되었는가?"
+같은 세션의 Leader는 Worker의 맥락에 영향받아 형식적 approve를 하는 경향이 있다.
+이를 방지하기 위해 **독립 Reviewer subagent**를 먼저 소환하여 구조적 품질을 점검한다.
 
-Leader는 approve 전에 **`review-execute.md`** 를 artifact에 작성해야 한다.
-이 파일이 없으면 엔진이 transition을 차단한다.
+#### 검증 흐름
+
+```
+Worker 작업 완료 (plan.md 또는 코드)
+  → PM이 Reviewer subagent 소환 (Agent 도구 사용, 독립 컨텍스트)
+     → Reviewer는 산출물만 읽고 아키텍처 품질 리포트 생성
+     → review-{step}.md 아티팩트로 저장
+  → PM이 Leader에게 Reviewer 리포트 전달
+  → Leader: Reviewer 발견사항 + 프로젝트 맥락을 고려하여 판단
+     ├─ Reviewer가 critical 이슈 발견 → reject하거나, 무시 근거를 기록
+     └─ approve/reject 결정
+```
+
+#### Reviewer Subagent 소환 방법
+
+PM이 Agent 도구로 Reviewer를 소환할 때 다음 프롬프트를 사용한다:
+
+```
+"You are an INDEPENDENT ARCHITECTURE REVIEWER.
+Read {artifact_path} and evaluate against Clean Architecture, DDD, OOP, TDD.
+Produce a structured review: Layer Separation (X/5), DDD Patterns (X/5),
+SOLID Principles (X/5), Test Strategy (X/5), Class Spec Completeness (X/5).
+List specific issues ranked by severity (critical/high/medium/low).
+Save review to {artifact_dir}/review-{step}.md.
+Be HARSH and CRITICAL."
+```
+
+Reviewer는 **Worker의 사고 과정을 모른 채** 산출물만 평가하므로 편향 없는 독립 판단이 가능하다.
+
+#### Leader의 책임
+
+Leader는 Reviewer 리포트를 읽은 후:
+- Reviewer가 찾은 **critical/high 이슈**에 대해 반드시 입장을 표명해야 함
+- approve 시 review-{step}.md에 Leader의 판단 근거를 추가해야 함
+- review-{step}.md가 없으면 엔진이 transition을 차단함
+
+이 2단계 구조는 plan 단계와 execute 단계 모두에 적용된다.
 
 ---
 
@@ -261,18 +295,18 @@ node .vela/cli/vela-engine.js commit --message "custom message"
 ## 팀 메커니즘
 
 Research, Plan, Execute 단계에서 **팀 기반 실행**이 활성화된다.
-각 단계의 작업자(Worker)가 작업을 수행하면 Vela-Leader가 검토한다.
-Leader가 승인해야만 해당 단계를 완료할 수 있다.
+Worker → Reviewer(독립 subagent) → Leader(최종 판단) 3단계 검증 구조.
 
 ### 팀 구성
 
-| 단계 | Worker | Reviewer | 역할 |
-|------|--------|----------|------|
-| research | **Vela-Researcher** | Vela-Leader | 리서치 수행 → 충분한지 검증 |
-| plan | **Vela-Planner** | Vela-Leader | 계획 작성 → 계획이 충분한지 검증 |
-| execute | **Vela-Executor** | Vela-Leader | 코드 구현 → 구현 품질 검증 |
-
-**PM (Project Manager)**: 전체 파이프라인을 조율하고 각 단계에서 Worker와 Leader를 소환한다.
+| 역할 | 실행 방식 | 책임 |
+|------|----------|------|
+| **PM** | 같은 세션 | 파이프라인 조율, Worker/Reviewer/Leader 소환 |
+| **Vela-Researcher** | 같은 세션 | 프로젝트 분석, research.md 작성 |
+| **Vela-Planner** | 같은 세션 | 아키텍처 설계, 클래스 명세서, plan.md 작성 |
+| **Vela-Executor** | 같은 세션 | 코드 구현, 테스트 작성 |
+| **Vela-Reviewer** | **독립 subagent** | 산출물 품질 점검 (편향 없는 독립 평가) |
+| **Vela-Leader** | 같은 세션 | Reviewer 리포트 기반 최종 approve/reject |
 
 ### 공통 실행 루프
 
@@ -281,8 +315,10 @@ Leader가 승인해야만 해당 단계를 완료할 수 있다.
 ```
 PM → Worker 소환 (작업 지시)
      → Worker 작업 수행 (research.md / plan.md / 코드 수정)
-     → Leader 소환 (검토 요청)
-     → Leader 검토: "이걸로 충분한가?"
+     → PM → Reviewer subagent 소환 (Agent 도구, 독립 컨텍스트)
+          → Reviewer: 산출물만 읽고 품질 리포트 생성 → review-{step}.md
+     → PM → Leader 소환 (Reviewer 리포트 전달)
+     → Leader: Reviewer 발견사항 + 맥락 고려하여 판단
          ├─ 승인(approve) → 단계 완료, 다음 단계로 전이
          └─ 거부(reject) → 피드백과 함께 Worker 재지시
 ```
