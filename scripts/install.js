@@ -115,6 +115,9 @@ switch (command) {
 }
 
 function install() {
+  // ─── Phase 0: Validate & Repair ───
+  const validation = validate();
+
   // Ensure .claude/ directory exists
   const claudeDir = path.join(PROJECT_ROOT, '.claude');
   if (!fs.existsSync(claudeDir)) {
@@ -284,6 +287,7 @@ This project uses Vela for development governance.
   console.log(JSON.stringify({
     ok: errors.length === 0,
     command: 'install',
+    validation: validation,
     installed: installed,
     agent: 'vela',
     claude_md: !fs.existsSync(claudeMdPath) ? 'created' : 'exists',
@@ -436,6 +440,153 @@ function status() {
     permission_count: permissions.deny.length + permissions.allow.length,
     settings_path: SETTINGS_PATH
   }, null, 2));
+}
+
+// ─── Validate & Repair ───
+
+function validate() {
+  const results = { fixed: [], warnings: [], ok: [] };
+  const velaDir = path.join(PROJECT_ROOT, '.vela');
+
+  // 1. Required directories
+  const requiredDirs = [
+    'hooks', 'hooks/shared', 'cli', 'cache', 'templates',
+    'state', 'artifacts', 'agents'
+  ];
+  for (const dir of requiredDirs) {
+    const dirPath = path.join(velaDir, dir);
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+      results.fixed.push(`Created missing directory: .vela/${dir}`);
+    }
+  }
+
+  // 2. Required files — check and copy from skill if missing
+  const skillBase = path.resolve(__dirname, '..');
+  const requiredFiles = [
+    { src: 'scripts/hooks/vela-gate-keeper.js', dst: 'hooks/vela-gate-keeper.js' },
+    { src: 'scripts/hooks/vela-gate-guard.js', dst: 'hooks/vela-gate-guard.js' },
+    { src: 'scripts/hooks/vela-orchestrator.js', dst: 'hooks/vela-orchestrator.js' },
+    { src: 'scripts/hooks/vela-tracker.js', dst: 'hooks/vela-tracker.js' },
+    { src: 'scripts/hooks/shared/constants.js', dst: 'hooks/shared/constants.js' },
+    { src: 'scripts/hooks/shared/pipeline.js', dst: 'hooks/shared/pipeline.js' },
+    { src: 'scripts/cli/vela-engine.js', dst: 'cli/vela-engine.js' },
+    { src: 'scripts/cli/vela-read.js', dst: 'cli/vela-read.js' },
+    { src: 'scripts/cli/vela-write.js', dst: 'cli/vela-write.js' },
+    { src: 'scripts/cache/treenode.js', dst: 'cache/treenode.js' },
+    { src: 'scripts/statusline.sh', dst: 'statusline.sh' },
+    { src: 'scripts/agents/vela.md', dst: 'agents/vela.md' },
+    { src: 'scripts/agents/researcher.md', dst: 'agents/researcher.md' },
+    { src: 'scripts/agents/planner.md', dst: 'agents/planner.md' },
+    { src: 'scripts/agents/executor.md', dst: 'agents/executor.md' },
+    { src: 'scripts/agents/reviewer.md', dst: 'agents/reviewer.md' },
+    { src: 'scripts/agents/leader.md', dst: 'agents/leader.md' },
+    { src: 'templates/pipeline.json', dst: 'templates/pipeline.json' },
+    { src: 'templates/config.json', dst: 'templates/config.json' }
+  ];
+
+  for (const f of requiredFiles) {
+    const dstPath = path.join(velaDir, f.dst);
+    if (!fs.existsSync(dstPath)) {
+      // Try to copy from skill directory
+      const srcPath = path.join(skillBase, f.src);
+      if (fs.existsSync(srcPath)) {
+        const dstDir = path.dirname(dstPath);
+        if (!fs.existsSync(dstDir)) fs.mkdirSync(dstDir, { recursive: true });
+        fs.copyFileSync(srcPath, dstPath);
+        results.fixed.push(`Restored missing file: .vela/${f.dst}`);
+      } else {
+        results.warnings.push(`Missing file: .vela/${f.dst} (source not found)`);
+      }
+    } else {
+      results.ok.push(f.dst);
+    }
+  }
+
+  // 3. config.json validity
+  const configPath = path.join(velaDir, 'config.json');
+  if (fs.existsSync(configPath)) {
+    try {
+      JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    } catch (e) {
+      // Broken config — restore from template
+      const templateConfig = path.join(velaDir, 'templates', 'config.json');
+      if (fs.existsSync(templateConfig)) {
+        fs.copyFileSync(templateConfig, configPath);
+        results.fixed.push('Repaired broken config.json from template');
+      }
+    }
+  }
+
+  // 4. Clean up old/legacy files
+  const legacyFiles = [
+    path.join(velaDir, 'hooks', 'vela-pm.md'),  // old agent name
+  ];
+  for (const lf of legacyFiles) {
+    if (fs.existsSync(lf)) {
+      fs.unlinkSync(lf);
+      results.fixed.push(`Removed legacy file: ${path.basename(lf)}`);
+    }
+  }
+
+  // 5. Fix settings.local.json — remove old format hooks
+  if (fs.existsSync(SETTINGS_PATH)) {
+    try {
+      const settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
+      let fixed = false;
+
+      if (settings.hooks) {
+        for (const event of Object.keys(settings.hooks)) {
+          const before = settings.hooks[event].length;
+          // Remove flat format hooks (legacy)
+          settings.hooks[event] = settings.hooks[event].filter(entry => {
+            if (entry.command && !entry.hooks) return false; // legacy flat format
+            return true;
+          });
+          if (settings.hooks[event].length !== before) fixed = true;
+        }
+      }
+
+      // Remove old agent name
+      if (settings.agent === 'vela-pm') {
+        settings.agent = 'vela';
+        fixed = true;
+      }
+
+      if (fixed) {
+        fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+        results.fixed.push('Cleaned legacy hooks/settings from settings.local.json');
+      }
+    } catch (e) {
+      // Broken settings — will be overwritten by install
+      results.fixed.push('settings.local.json was broken, will be recreated');
+    }
+  }
+
+  // 6. Statusline.sh line endings (CRLF → LF)
+  const statuslinePath = path.join(velaDir, 'statusline.sh');
+  if (fs.existsSync(statuslinePath)) {
+    const content = fs.readFileSync(statuslinePath, 'utf-8');
+    if (content.includes('\r\n')) {
+      fs.writeFileSync(statuslinePath, content.replace(/\r\n/g, '\n'));
+      results.fixed.push('Fixed CRLF line endings in statusline.sh');
+    }
+  }
+
+  // 7. .gitignore — ensure Vela entries
+  const gitignorePath = path.join(PROJECT_ROOT, '.gitignore');
+  if (fs.existsSync(gitignorePath)) {
+    const content = fs.readFileSync(gitignorePath, 'utf-8');
+    const velaEntries = ['.vela/cache/', '.vela/state/', '.vela/artifacts/',
+      '.vela/tracker-signals.json', '.vela/write-log.jsonl', '*.vela-tmp'];
+    const missing = velaEntries.filter(e => !content.includes(e));
+    if (missing.length > 0 && !content.includes('# Vela Engine')) {
+      fs.appendFileSync(gitignorePath, '\n# Vela Engine (auto-managed)\n' + missing.join('\n') + '\n');
+      results.fixed.push(`Added ${missing.length} entries to .gitignore`);
+    }
+  }
+
+  return results;
 }
 
 // ─── Settings I/O ───
