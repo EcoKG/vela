@@ -138,10 +138,15 @@ function install() {
       settings.hooks[hook.matcher] = [];
     }
 
-    // Remove existing Vela hook entry with same ID
+    // Remove existing Vela hook entry with same ID (both legacy and new format)
     settings.hooks[hook.matcher] = settings.hooks[hook.matcher].filter(entry => {
-      if (!entry.hooks || !Array.isArray(entry.hooks)) return true;
-      return !entry.hooks.some(h => h.command && h.command.includes(hook.hookId));
+      // Remove legacy flat format
+      if (entry.command && !entry.hooks && entry.command.includes(hook.hookId)) return false;
+      // Remove new nested format
+      if (entry.hooks && Array.isArray(entry.hooks)) {
+        return !entry.hooks.some(h => h.command && h.command.includes(hook.hookId));
+      }
+      return true;
     });
 
     // Add the hook in correct Claude Code format:
@@ -243,13 +248,18 @@ function uninstall() {
   let removedHooks = 0;
   let removedPerms = 0;
 
-  // Remove hooks
+  // Remove hooks (both new and legacy format)
   if (settings.hooks) {
     for (const matcher of Object.keys(settings.hooks)) {
       const before = settings.hooks[matcher].length;
       settings.hooks[matcher] = settings.hooks[matcher].filter(entry => {
-        if (!entry.hooks || !Array.isArray(entry.hooks)) return true;
-        return !entry.hooks.some(h => h.command && h.command.includes(HOOK_PREFIX));
+        // Remove legacy flat format: { command: "...vela...", description: "..." }
+        if (entry.command && !entry.hooks && entry.command.includes(HOOK_PREFIX)) return false;
+        // Remove new nested format: { matcher, hooks: [{ command: "...vela..." }] }
+        if (entry.hooks && Array.isArray(entry.hooks)) {
+          return !entry.hooks.some(h => h.command && h.command.includes(HOOK_PREFIX));
+        }
+        return true;
       });
       removedHooks += before - settings.hooks[matcher].length;
 
