@@ -6,6 +6,11 @@ set -e
 
 REPO="https://github.com/EcoKG/vela.git"
 TMP="/tmp/vela-install-$$"
+
+# Clean up any previous failed installs
+for old in /tmp/vela-install-*; do
+  [ -d "$old" ] && chmod -R u+w "$old" 2>/dev/null && rm -rf "$old" 2>/dev/null
+done
 SKILL_DIR="$HOME/.claude/skills/vela"
 SETTINGS="$HOME/.claude/settings.json"
 
