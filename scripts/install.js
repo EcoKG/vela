@@ -115,6 +115,12 @@ switch (command) {
 }
 
 function install() {
+  // Ensure .claude/ directory exists
+  const claudeDir = path.join(PROJECT_ROOT, '.claude');
+  if (!fs.existsSync(claudeDir)) {
+    fs.mkdirSync(claudeDir, { recursive: true });
+  }
+
   const settings = readSettings();
 
   if (!settings.hooks) {
@@ -182,6 +188,9 @@ function install() {
   }
   settings.permissions.allow = [...existingAllow];
 
+  // ─── Set default agent to vela-pm ───
+  settings.agent = 'vela-pm';
+
   writeSettings(settings);
 
   // Create state directory for session tracking (project-local)
@@ -190,12 +199,40 @@ function install() {
     fs.mkdirSync(stateDir, { recursive: true });
   }
 
+  // ─── Deploy vela-pm agent ───
+  const agentsDir = path.join(PROJECT_ROOT, '.claude', 'agents');
+  if (!fs.existsSync(agentsDir)) {
+    fs.mkdirSync(agentsDir, { recursive: true });
+  }
+  const pmSourcePath = path.join(PROJECT_ROOT, '.vela', 'agents', 'vela-pm.md');
+  const pmTargetPath = path.join(agentsDir, 'vela-pm.md');
+  if (fs.existsSync(pmSourcePath)) {
+    fs.copyFileSync(pmSourcePath, pmTargetPath);
+  }
+
+  // ─── Create CLAUDE.md if not exists ───
+  const claudeMdPath = path.join(PROJECT_ROOT, 'CLAUDE.md');
+  if (!fs.existsSync(claudeMdPath)) {
+    fs.writeFileSync(claudeMdPath, `# Development Workflow — Vela
+
+This project uses Vela for development governance.
+
+- To explore/read code: use normal tools freely (Explore mode).
+- To modify code: ALWAYS start with \`node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>\`
+- Follow pipeline steps in order. Do NOT use TaskCreate/TaskUpdate during pipeline execution.
+- Do NOT skip pipeline steps or create your own plans outside the pipeline.
+- Each team step (research, plan, execute) uses Agent Teams with independent Worker → Reviewer → Leader agents.
+`);
+  }
+
   const permissionCount = VELA_PERMISSIONS.deny.length + VELA_PERMISSIONS.allow.length;
 
   console.log(JSON.stringify({
     ok: errors.length === 0,
     command: 'install',
     installed: installed,
+    agent: 'vela-pm',
+    claude_md: !fs.existsSync(claudeMdPath) ? 'created' : 'exists',
     permissions: {
       deny_rules: VELA_PERMISSIONS.deny.length,
       allow_rules: VELA_PERMISSIONS.allow.length
@@ -203,7 +240,7 @@ function install() {
     errors: errors,
     settings_path: SETTINGS_PATH,
     message: errors.length === 0
-      ? `Successfully installed ${installed.length} Vela hooks + ${permissionCount} permission rules.`
+      ? `Successfully installed ${installed.length} Vela hooks + ${permissionCount} permission rules + vela-pm agent.`
       : `Installed ${installed.length} hooks with ${errors.length} errors.`
   }, null, 2));
 }
@@ -372,8 +409,6 @@ function writeSettings(settings) {
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  // Atomic write
-  const tmpPath = SETTINGS_PATH + '.tmp';
-  fs.writeFileSync(tmpPath, JSON.stringify(settings, null, 2));
-  fs.renameSync(tmpPath, SETTINGS_PATH);
+  // Direct write (atomic rename fails on some WSL+Windows filesystems)
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
