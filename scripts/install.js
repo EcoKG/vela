@@ -586,6 +586,44 @@ function validate() {
     }
   }
 
+  // 8. System dependencies — install if missing
+  const { execSync } = require('child_process');
+
+  // jq (required for statusline.sh)
+  try {
+    execSync('which jq', { stdio: 'pipe' });
+    results.ok.push('jq');
+  } catch (e) {
+    // Try to install jq
+    const platform = process.platform;
+    let installed = false;
+    const cmds = [
+      'sudo apt-get install -y jq 2>/dev/null',
+      'sudo yum install -y jq 2>/dev/null',
+      'brew install jq 2>/dev/null',
+      'apk add jq 2>/dev/null'
+    ];
+    for (const cmd of cmds) {
+      try {
+        execSync(cmd, { stdio: 'pipe', timeout: 30000 });
+        installed = true;
+        results.fixed.push('Installed missing dependency: jq');
+        break;
+      } catch (e2) {}
+    }
+    if (!installed) {
+      results.warnings.push('jq not found and auto-install failed. Install manually: sudo apt install jq');
+    }
+  }
+
+  // sqlite3 (optional, for TreeNode cache)
+  try {
+    execSync('which sqlite3', { stdio: 'pipe' });
+    results.ok.push('sqlite3');
+  } catch (e) {
+    results.warnings.push('sqlite3 not found (optional, for TreeNode cache)');
+  }
+
   return results;
 }
 
