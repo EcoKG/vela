@@ -139,10 +139,10 @@ async function main() {
 
     output.push(`└──────────────────────────────────────`);
   } else {
-    // No active pipeline
+    // No active pipeline — Explore mode
     output.push('');
-    output.push(`VELA: No active pipeline.`);
-    output.push(`  Start one with: node .vela/cli/vela-engine.js init "<task description>"`);
+    output.push(`[VELA] Explore mode active. Reads allowed. Writes blocked.`);
+    output.push(`  To modify code: node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>`);
   }
 
   if (output.length > 0) {

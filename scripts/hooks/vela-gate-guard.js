@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const { findActivePipeline, readPipelineDefinition, getCurrentStepDef, readConfig } = require('./shared/pipeline');
-const { CODE_EXTENSIONS, SKIP_PATHS, WRITE_TOOLS } = require('./shared/constants');
+const { CODE_EXTENSIONS, SKIP_PATHS, WRITE_TOOLS, READ_TOOLS } = require('./shared/constants');
 
 async function main() {
   let input;
@@ -48,26 +48,55 @@ async function main() {
 
   const state = findActivePipeline(velaDir);
 
-  // If no active pipeline, block write operations on project files
-  // (must initialize pipeline first)
+  // ─── EXPLORE MODE (no active pipeline) ───
   if (!state) {
+    // Block writes (existing behavior)
     if (WRITE_TOOLS.has(tool_name)) {
       const targetFile = tool_input.file_path || tool_input.path || '';
-
-      // Allow .vela/ internal writes
       if (targetFile.includes('.vela/')) {
         process.exit(0);
       }
-
       process.stderr.write(
-        `[VELA GATE GUARD] BLOCKED: No active pipeline.\n` +
+        `[VELA GATE GUARD] BLOCKED: No active pipeline (Explore mode).\n` +
         `  Tool: ${tool_name}\n` +
-        `  You must initialize a pipeline before modifying project files.\n` +
-        `  Use the Vela engine CLI: node .vela/cli/vela-engine.js init`
+        `  To modify code: node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>`
       );
       process.exit(2);
     }
+    // Explore mode: reads, glob, grep all allowed
     process.exit(0);
+  }
+
+  // ─── DEVELOP MODE (pipeline active) ───
+
+  // ─── GUARD 0: Block Claude's task system during pipeline ───
+  // Claude uses TaskCreate/TaskUpdate to build competing plans that bypass the pipeline.
+  const BLOCKED_TASK_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet']);
+  if (BLOCKED_TASK_TOOLS.has(tool_name)) {
+    process.stderr.write(
+      `[VELA GATE GUARD] BLOCKED: Claude task tools disabled during Vela pipeline.\n` +
+      `  Use Vela pipeline steps instead.\n` +
+      `  Current step: ${state.current_step}\n` +
+      `  Advance with: node .vela/cli/vela-engine.js transition`
+    );
+    process.exit(2);
+  }
+
+  // ─── GUARD 0.5: Read-throttle warning in non-research steps ───
+  if (READ_TOOLS.has(tool_name) && state.current_step !== 'research') {
+    const counterPath = path.join(velaDir, 'state', 'reads-since-transition.json');
+    try {
+      if (fs.existsSync(counterPath)) {
+        const counter = JSON.parse(fs.readFileSync(counterPath, 'utf-8'));
+        if (counter.step === state.current_step && counter.count > 5) {
+          process.stdout.write(
+            `[VELA GATE GUARD] WARNING: ${counter.count} reads in "${state.current_step}" step.\n` +
+            `  Extensive reading belongs in the research step.\n` +
+            `  Current step: ${state.current_step}`
+          );
+        }
+      }
+    } catch (e) {}
   }
 
   const pipelineDef = readPipelineDefinition(cwd);

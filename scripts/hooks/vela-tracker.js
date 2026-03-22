@@ -121,6 +121,27 @@ async function main() {
     }
   }
 
+  // ─── Read Counter (for read-throttle warning in gate-guard) ───
+  const state = findActivePipeline(velaDir);
+  if (state && (tool_name === 'Read' || tool_name === 'Glob' || tool_name === 'Grep')) {
+    const counterPath = path.join(velaDir, 'state', 'reads-since-transition.json');
+    let counter = { step: state.current_step, count: 0 };
+    try {
+      if (fs.existsSync(counterPath)) {
+        counter = JSON.parse(fs.readFileSync(counterPath, 'utf-8'));
+        if (counter.step !== state.current_step) {
+          counter = { step: state.current_step, count: 0 };
+        }
+      }
+    } catch (e) {}
+    counter.count++;
+    try {
+      const stateDir = path.join(velaDir, 'state');
+      if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
+      fs.writeFileSync(counterPath, JSON.stringify(counter));
+    } catch (e) {}
+  }
+
   // ─── TreeNode Cache Update ───
   // When a file is read, record its path in the TreeNode cache
   if (tool_name === 'Read' && config.cache && config.cache.treenode_enabled) {
