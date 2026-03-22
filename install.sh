@@ -7,6 +7,7 @@ set -e
 REPO="https://github.com/EcoKG/vela.git"
 TMP="/tmp/vela-install-$$"
 SKILL_DIR="$HOME/.claude/skills/vela"
+SETTINGS="$HOME/.claude/settings.json"
 
 echo "⛵ Vela Engine — Installing..."
 
@@ -24,10 +25,27 @@ cp -r "$TMP/templates" "$SKILL_DIR/"
 # Cleanup
 rm -rf "$TMP"
 
+# Enable Agent Teams in global settings
+if command -v node &>/dev/null; then
+  node -e "
+    const fs = require('fs');
+    const p = '$SETTINGS';
+    let d = {};
+    try { d = JSON.parse(fs.readFileSync(p, 'utf-8')); } catch(e) {}
+    if (!d.env) d.env = {};
+    d.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1';
+    fs.mkdirSync(require('path').dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify(d, null, 2));
+    console.log('🌟 Agent Teams enabled in ~/.claude/settings.json');
+  " 2>/dev/null || echo "⚠ Could not enable Agent Teams automatically. Add manually:"
+  echo '   "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" }'
+fi
+
 echo ""
 echo "✦ Vela Engine installed successfully! ✦"
 echo ""
-echo "⛵ Global skill registered at: $SKILL_DIR"
+echo "⛵ Global skill: $SKILL_DIR"
+echo "🌟 Agent Teams: enabled"
 echo ""
 echo "🧭 Next steps:"
 echo "   1. Open any project with Claude Code"
