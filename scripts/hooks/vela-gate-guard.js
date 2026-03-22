@@ -127,8 +127,20 @@ async function main() {
   if (WRITE_TOOLS.has(tool_name)) {
     const targetFile = tool_input.file_path || tool_input.path || '';
 
-    // Skip .vela/ internal files
+    // Skip .vela/ internal files — EXCEPT protected files
     if (targetFile.includes('.vela/')) {
+      const protectedFile = path.basename(targetFile);
+      // pipeline-state.json MUST go through GUARD 5 (engine-managed only)
+      // approval-*.json MUST be written by Leader agent, not PM
+      if (protectedFile === 'pipeline-state.json') {
+        process.stderr.write(
+          `[VELA GATE GUARD] BLOCKED: Cannot directly modify pipeline-state.json.\n` +
+          `  Pipeline state is managed exclusively by the Vela engine.\n` +
+          `  Use: node .vela/cli/vela-engine.js transition`
+        );
+        process.exit(2);
+      }
+      // Allow other .vela/ writes (artifacts, cache, etc.)
       process.exit(0);
     }
 

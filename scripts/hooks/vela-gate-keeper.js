@@ -101,8 +101,15 @@ async function main() {
   if (currentMode === 'read' && WRITE_TOOLS.has(tool_name)) {
     const targetFile = tool_input.file_path || tool_input.path || '';
 
-    // Allow writes to .vela/ internal files (pipeline state, cache, etc.)
+    // Allow writes to .vela/ internal files — EXCEPT pipeline-state.json
     if (targetFile.includes('.vela/')) {
+      if (path.basename(targetFile) === 'pipeline-state.json') {
+        process.stderr.write(
+          `[VELA GATE KEEPER] BLOCKED: Cannot directly modify pipeline-state.json.\n` +
+          `  Pipeline state is managed exclusively by the Vela engine.`
+        );
+        process.exit(2);
+      }
       process.exit(0);
     }
 
