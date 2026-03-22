@@ -122,15 +122,15 @@ async function main() {
   }
 
   // ─── Read Counter (for read-throttle warning in gate-guard) ───
-  const state = findActivePipeline(velaDir);
-  if (state && (tool_name === 'Read' || tool_name === 'Glob' || tool_name === 'Grep')) {
+  const pipelineForCounter = findActivePipeline(velaDir);
+  if (pipelineForCounter && (tool_name === 'Read' || tool_name === 'Glob' || tool_name === 'Grep')) {
     const counterPath = path.join(velaDir, 'state', 'reads-since-transition.json');
-    let counter = { step: state.current_step, count: 0 };
+    let counter = { step: pipelineForCounter.current_step, count: 0 };
     try {
       if (fs.existsSync(counterPath)) {
         counter = JSON.parse(fs.readFileSync(counterPath, 'utf-8'));
-        if (counter.step !== state.current_step) {
-          counter = { step: state.current_step, count: 0 };
+        if (counter.step !== pipelineForCounter.current_step) {
+          counter = { step: pipelineForCounter.current_step, count: 0 };
         }
       }
     } catch (e) {}
