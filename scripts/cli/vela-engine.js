@@ -83,7 +83,23 @@ function cmdInit() {
   const cleaned = cleanupCancelledArtifacts(24);
 
   const type = getFlag('--type') || 'code';
-  const scale = getFlag('--scale') || autoDetectScale(request);
+  const scale = getFlag('--scale');
+
+  // Scale selection is MANDATORY — user must choose
+  if (!scale) {
+    return output({
+      ok: false,
+      error: 'Pipeline scale selection required. Ask the user to choose.',
+      options: {
+        small: 'trivial pipeline (init → execute → commit → finalize) — 단일 파일, 10줄 이하',
+        medium: 'quick pipeline (init → plan → execute → verify → commit → finalize) — 3파일 이하, 100줄 이하',
+        large: 'standard pipeline (full 10-step with research, plan, team review) — 대규모 작업'
+      },
+      usage: 'vela-engine init "task" --scale small|medium|large',
+      message: 'User must select pipeline scale. Present the options and let them choose.'
+    });
+  }
+
   const pipelineType = scaleToPipeline(scale);
 
   // Create artifact directory
