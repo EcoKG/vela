@@ -1,0 +1,8 @@
+{
+  "name": "vela",
+  "description": "⛵ Vela — Sandbox Development System for Claude Code. Pipeline-driven, team-verified, git-integrated development governance engine.",
+  "author": {
+    "name": "EcoKG",
+    "email": "EcoKG@users.noreply.github.com"
+  }
+}

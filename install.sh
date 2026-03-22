@@ -1,27 +1,32 @@
 #!/bin/bash
-# ⛵ Vela Engine — One-line installer
+# ⛵ Vela Engine — One-line installer (Plugin format)
 # Usage: curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/install.sh | bash
 
 REPO="https://github.com/EcoKG/vela.git"
 TMP="$HOME/.vela-install-tmp"
-SKILL_DIR="$HOME/.claude/skills/vela"
+PLUGIN_DIR="$HOME/.claude/skills/vela"
 SETTINGS="$HOME/.claude/settings.json"
 
-echo "⛵ Vela Engine — Installing..."
+echo "⛵ Vela Engine — Installing as plugin..."
 
 # Clean previous attempts
 rm -rf "$TMP" 2>/dev/null
 
-# Clone to home directory (avoids /tmp permission issues)
+# Clone
 git clone --depth 1 "$REPO" "$TMP" 2>/dev/null || { echo "❌ git clone failed"; exit 1; }
 
-# Create skill directory
-mkdir -p "$SKILL_DIR"
+# Create plugin directory
+mkdir -p "$PLUGIN_DIR"
 
-# Copy skill files
-cp "$TMP/SKILL.md" "$SKILL_DIR/"
-cp -r "$TMP/scripts" "$SKILL_DIR/"
-cp -r "$TMP/templates" "$SKILL_DIR/"
+# Copy plugin structure
+cp -r "$TMP/.claude-plugin" "$PLUGIN_DIR/"
+cp -r "$TMP/skills" "$PLUGIN_DIR/"
+cp -r "$TMP/scripts" "$PLUGIN_DIR/"
+cp -r "$TMP/templates" "$PLUGIN_DIR/"
+cp "$TMP/README.md" "$PLUGIN_DIR/" 2>/dev/null
+
+# Keep SKILL.md as fallback
+cp "$TMP/SKILL.md" "$PLUGIN_DIR/" 2>/dev/null
 
 # Cleanup
 rm -rf "$TMP" 2>/dev/null
@@ -44,11 +49,11 @@ fi
 echo ""
 echo "✦ Vela Engine installed successfully! ✦"
 echo ""
-echo "⛵ Global skill: $SKILL_DIR"
+echo "⛵ Plugin: $PLUGIN_DIR"
+echo "🌟 Agent Teams: enabled"
 echo ""
-echo "🧭 Next steps:"
-echo "   1. Open any project with Claude Code"
-echo "   2. Type: /vela"
-echo "   3. Or say: 이 프로젝트에 Vela 환경을 구축해줘"
+echo "🧭 Commands:"
+echo "   /vela:init    — 프로젝트에 Vela 환경 구축"
+echo "   /vela:start   — 파이프라인 바로 시작"
 echo ""
 echo "✦─────────────────────✦"
