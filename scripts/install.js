@@ -191,6 +191,16 @@ function install() {
   // ─── Set default agent to vela ───
   settings.agent = 'vela';
 
+  // ─── Set statusLine ───
+  const statusLinePath = path.join(PROJECT_ROOT, '.vela', 'statusline.sh');
+  if (fs.existsSync(statusLinePath)) {
+    settings.statusLine = {
+      type: 'command',
+      command: statusLinePath,
+      padding: 2
+    };
+  }
+
   writeSettings(settings);
 
   // Create state directory for session tracking (project-local)
