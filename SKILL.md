@@ -181,48 +181,65 @@ node .vela/cli/vela-engine.js state
 node .vela/cli/vela-engine.js sub-transition
 ```
 
-### 2단계 검증 — Reviewer Subagent → Leader
+### 3단계 검증 — Agent Teams 기반
 
-같은 세션의 Leader는 Worker의 맥락에 영향받아 형식적 approve를 하는 경향이 있다.
-이를 방지하기 위해 **독립 Reviewer subagent**를 먼저 소환하여 구조적 품질을 점검한다.
+Vela는 Claude Code의 **Agent Teams**를 사용하여 독립 에이전트를 소환한다.
+각 에이전트는 별도 Claude 인스턴스로 실행되며, 독립적인 컨텍스트를 가진다.
 
 #### 검증 흐름
 
 ```
-Worker 작업 완료 (plan.md 또는 코드)
-  → PM이 Reviewer subagent 소환 (Agent 도구 사용, 독립 컨텍스트)
-     → Reviewer는 산출물만 읽고 아키텍처 품질 리포트 생성
-     → review-{step}.md 아티팩트로 저장
-  → PM이 Leader에게 Reviewer 리포트 전달
-  → Leader: Reviewer 발견사항 + 프로젝트 맥락을 고려하여 판단
-     ├─ Reviewer가 critical 이슈 발견 → reject하거나, 무시 근거를 기록
-     └─ approve/reject 결정
+PM(Team Lead)이 Worker 에이전트 소환 (Agent 도구 + team_name)
+  → Worker: 독립 컨텍스트에서 작업 수행 → 산출물 작성 → PM에게 완료 메시지
+  → PM이 Reviewer 에이전트 소환
+  → Reviewer: 산출물만 읽고 review-{step}.md 작성 → PM에게 점수/이슈 보고
+  → PM이 Leader 에이전트 소환
+  → Leader: Reviewer 리포트 + 산출물 읽고 approval-{step}.json 작성
+     ├─ approve → PM이 transition 호출
+     └─ reject → PM이 Worker에게 피드백 전달 → 재작업
 ```
 
-#### Reviewer Subagent 소환 방법
+#### 에이전트 소환 방법
 
-PM이 Agent 도구로 Reviewer를 소환할 때 다음 프롬프트를 사용한다:
+PM(Team Lead)이 Agent 도구로 각 역할을 소환한다:
 
 ```
-"You are an INDEPENDENT ARCHITECTURE REVIEWER.
-Read {artifact_path} and evaluate against Clean Architecture, DDD, OOP, TDD.
-Produce a structured review: Layer Separation (X/5), DDD Patterns (X/5),
-SOLID Principles (X/5), Test Strategy (X/5), Class Spec Completeness (X/5).
-List specific issues ranked by severity (critical/high/medium/low).
-Save review to {artifact_dir}/review-{step}.md.
-Be HARSH and CRITICAL."
+Agent 도구 사용:
+  team_name: "vela-{pipeline-slug}"
+  name: "researcher" | "planner" | "executor" | "reviewer" | "leader"
+  prompt: ".vela/agents/{role}.md 의 지시사항을 따라 작업 수행.
+           아티팩트 경로: {artifact_dir}"
 ```
 
-Reviewer는 **Worker의 사고 과정을 모른 채** 산출물만 평가하므로 편향 없는 독립 판단이 가능하다.
+각 에이전트의 지시사항은 `.vela/agents/` 디렉토리에 정의되어 있다:
+- `researcher.md` — 프로젝트 분석, research.md 작성
+- `planner.md` — 아키텍처 설계, 클래스 명세서, plan.md 작성
+- `executor.md` — TDD 기반 코드 구현
+- `reviewer.md` — 독립 품질 점검, review-{step}.md 작성
+- `leader.md` — Reviewer 리포트 기반 최종 판단, approval-{step}.json 작성
 
-#### Leader의 책임
+#### 승인 메커니즘 — 파일 기반
 
-Leader는 Reviewer 리포트를 읽은 후:
-- Reviewer가 찾은 **critical/high 이슈**에 대해 반드시 입장을 표명해야 함
-- approve 시 review-{step}.md에 Leader의 판단 근거를 추가해야 함
-- review-{step}.md가 없으면 엔진이 transition을 차단함
+Leader 에이전트는 `approval-{step}.json`을 아티팩트 디렉토리에 작성한다:
+```json
+{
+  "step": "plan",
+  "decision": "approve",
+  "reviewer_score": "22/25",
+  "justification": "모든 critical 이슈 해결됨",
+  "timestamp": "2026-03-22T..."
+}
+```
+엔진의 exit gate가 이 파일의 `decision`을 확인한다.
+`approval-{step}.json`이 없거나 `decision`이 `approve`가 아니면 transition 차단.
 
-이 2단계 구조는 plan 단계와 execute 단계 모두에 적용된다.
+#### reject 루프
+
+Leader가 reject하면:
+1. Leader가 `approval-{step}.json`에 `decision: "reject"`, `feedback: "..."` 작성
+2. PM이 이를 읽고 Worker에게 피드백과 함께 재작업 요청
+3. Worker가 산출물 수정 → Reviewer 재소환 → Leader 재판단
+4. approve될 때까지 반복
 
 ---
 
@@ -292,64 +309,62 @@ node .vela/cli/vela-engine.js commit --message "custom message"
 
 ---
 
-## 팀 메커니즘
+## 팀 메커니즘 — Agent Teams
 
-Research, Plan, Execute 단계에서 **팀 기반 실행**이 활성화된다.
-Worker → Reviewer(독립 subagent) → Leader(최종 판단) 3단계 검증 구조.
+Research, Plan, Execute 단계에서 **Claude Code Agent Teams**를 사용한다.
+각 역할은 **독립 Claude 인스턴스**로 실행되며, 별도의 컨텍스트 윈도우를 가진다.
 
 ### 팀 구성
 
 | 역할 | 실행 방식 | 책임 |
 |------|----------|------|
-| **PM** | 같은 세션 | 파이프라인 조율, Worker/Reviewer/Leader 소환 |
-| **Vela-Researcher** | 같은 세션 | 프로젝트 분석, research.md 작성 |
-| **Vela-Planner** | 같은 세션 | 아키텍처 설계, 클래스 명세서, plan.md 작성 |
-| **Vela-Executor** | 같은 세션 | 코드 구현, 테스트 작성 |
-| **Vela-Reviewer** | **독립 subagent** | 산출물 품질 점검 (편향 없는 독립 평가) |
-| **Vela-Leader** | 같은 세션 | Reviewer 리포트 기반 최종 approve/reject |
+| **PM (Team Lead)** | 메인 세션 | 파이프라인 조율, 에이전트 소환/종료, 엔진 명령 실행 |
+| **Vela-Researcher** | **독립 에이전트** | 프로젝트 분석, research.md 작성 |
+| **Vela-Planner** | **독립 에이전트** | 아키텍처 설계, 클래스 명세서, plan.md 작성 |
+| **Vela-Executor** | **독립 에이전트** | TDD 기반 코드 구현 |
+| **Vela-Reviewer** | **독립 에이전트** | 산출물 품질 점검, review-{step}.md 작성 |
+| **Vela-Leader** | **독립 에이전트** | Reviewer 리포트 기반 최종 판단, approval-{step}.json 작성 |
+
+모든 에이전트는 `.vela/agents/` 디렉토리의 지시사항(CLAUDE.md)을 따른다.
 
 ### 공통 실행 루프
 
 모든 팀 단계는 동일한 패턴을 따른다:
 
 ```
-PM → Worker 소환 (작업 지시)
-     → Worker 작업 수행 (research.md / plan.md / 코드 수정)
-     → PM → Reviewer subagent 소환 (Agent 도구, 독립 컨텍스트)
-          → Reviewer: 산출물만 읽고 품질 리포트 생성 → review-{step}.md
-     → PM → Leader 소환 (Reviewer 리포트 전달)
-     → Leader: Reviewer 발견사항 + 맥락 고려하여 판단
-         ├─ 승인(approve) → 단계 완료, 다음 단계로 전이
-         └─ 거부(reject) → 피드백과 함께 Worker 재지시
+PM(Team Lead)
+  → Worker 에이전트 소환 (Agent 도구 + team_name)
+     → Worker: 독립 컨텍스트에서 작업 → 산출물 작성 → PM에게 완료 메시지
+  → Reviewer 에이전트 소환
+     → Reviewer: 산출물만 읽고 review-{step}.md 작성 → PM에게 점수 보고
+  → Leader 에이전트 소환
+     → Leader: Reviewer 리포트 + 산출물 읽고 approval-{step}.json 작성
+        ├─ approve → PM이 vela-engine transition 호출
+        └─ reject → PM이 Worker에게 피드백 전달 → 재작업
 ```
 
-### 팀 명령어
+### 에이전트 소환
 
-```bash
-# ─── Research 단계 ───
-node .vela/cli/vela-engine.js team-dispatch researcher    # Researcher 소환
-node .vela/cli/vela-engine.js team-record researcher pass # Researcher 완료
-node .vela/cli/vela-engine.js team-dispatch leader        # Leader 검토
-node .vela/cli/vela-engine.js team-record leader approve  # 충분함 → 통과
-node .vela/cli/vela-engine.js team-record leader reject --feedback "보안 취약점 분석 누락"
+PM이 Agent 도구로 각 에이전트를 소환한다:
 
-# ─── Plan 단계 ───
-node .vela/cli/vela-engine.js team-dispatch planner       # Planner 소환
-node .vela/cli/vela-engine.js team-record planner pass    # Planner 완료
-node .vela/cli/vela-engine.js team-dispatch leader        # Leader 검토
-node .vela/cli/vela-engine.js team-record leader approve  # 계획 충분 → 통과
-node .vela/cli/vela-engine.js team-record leader reject --feedback "에러 핸들링 계획 누락"
-
-# ─── Execute 단계 ───
-node .vela/cli/vela-engine.js team-dispatch executor      # Executor 소환
-node .vela/cli/vela-engine.js team-record executor pass   # Executor 완료
-node .vela/cli/vela-engine.js team-dispatch leader        # Leader 검토
-node .vela/cli/vela-engine.js team-record leader approve  # 구현 승인
-node .vela/cli/vela-engine.js team-record leader reject --feedback "테스트 누락"
+```
+Agent 도구:
+  team_name: "vela-pipeline"
+  name: "researcher" | "planner" | "executor" | "reviewer" | "leader"
+  prompt: ".vela/agents/{role}.md를 읽고 지시사항을 따르세요.
+           아티팩트 경로: {artifact_dir}
+           현재 단계: {step}"
 ```
 
-Leader가 거부하면 Worker의 상태가 standby로 리셋되고, 피드백을 반영하여 재작업한다.
-Leader가 승인해야만 해당 단계를 완료하고 다음으로 전이할 수 있다.
+에이전트는 작업 완료 후 PM에게 SendMessage로 결과를 보고한다.
+PM은 결과를 확인하고 다음 에이전트를 소환하거나 파이프라인을 전진한다.
+
+### 승인/거부 — 파일 기반
+
+- **Reviewer**: `review-{step}.md` 작성 (점수 + 이슈 목록)
+- **Leader**: `approval-{step}.json` 작성 (`decision: "approve"` 또는 `"reject"`)
+- 엔진 exit gate가 `approval-{step}.json`의 `decision`을 확인
+- 파일이 없거나 `approve`가 아니면 transition 차단
 
 ---
 

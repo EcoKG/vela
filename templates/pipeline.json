@@ -26,7 +26,8 @@
           "treenode_cache": true,
           "team": {
             "worker_role": "researcher",
-            "reviewer_role": "leader"
+            "reviewer_role": "reviewer",
+            "leader_role": "leader"
           }
         },
         {
@@ -40,7 +41,8 @@
           "max_revisions": 3,
           "team": {
             "worker_role": "planner",
-            "reviewer_role": "leader"
+            "reviewer_role": "reviewer",
+            "leader_role": "leader"
           },
           "architecture": {
             "required_sections": ["## Architecture", "## Class Specification", "## Test Strategy"],
@@ -97,7 +99,8 @@
           "sub_phase_tracking": true,
           "team": {
             "worker_role": "executor",
-            "reviewer_role": "leader"
+            "reviewer_role": "reviewer",
+            "leader_role": "leader"
           },
           "leader_requires_review_md": true
         },

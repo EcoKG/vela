@@ -98,16 +98,19 @@ async function main() {
       output.push(`│ Task: ${state.request.substring(0, 80)}`);
     }
 
-    // Show execute team info
-    if (state.current_step === 'execute' && state.execute_team) {
+    // Show team step info (Agent Teams)
+    if (stepDef && stepDef.team) {
       output.push(`│`);
-      output.push(`│ ┌─ EXECUTION TEAM ─────────────────`);
-      output.push(`│ │ PM: Orchestrating`);
-      output.push(`│ │ Executor: ${state.execute_team.executor_status || 'standby'}`);
-      output.push(`│ │ Leader: ${state.execute_team.leader_status || 'standby'}`);
-      output.push(`│ │ Iteration: ${state.execute_team.iteration || 0}`);
-      if (state.execute_team.last_review) {
-        output.push(`│ │ Last Review: ${state.execute_team.last_review}`);
+      output.push(`│ ┌─ AGENT TEAMS ────────────────────`);
+      output.push(`│ │ Worker: ${stepDef.team.worker_role}`);
+      output.push(`│ │ Reviewer: independent subagent`);
+      output.push(`│ │ Leader: independent agent`);
+      // Check for approval file
+      if (state._artifactDir) {
+        const approvalFile = `approval-${state.current_step}.json`;
+        const approvalPath = path.join(state._artifactDir, approvalFile);
+        const hasApproval = fs.existsSync(approvalPath);
+        output.push(`│ │ Approval: ${hasApproval ? 'APPROVED' : 'pending'}`);
       }
       output.push(`│ └────────────────────────────────────`);
     }

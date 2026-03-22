@@ -128,20 +128,9 @@ async function main() {
       process.exit(2);
     }
 
-    // GUARD 10: Team dispatch required before file writes
-    // During steps with team configuration, worker must be dispatched first.
-    // Prevents Claude from saying "dispatching Executor" but doing work directly.
-    const stepTeam = state.step_teams && state.step_teams[currentStep];
-    if (stepTeam && stepTeam.worker_status === 'standby') {
-      process.stderr.write(
-        `[VELA GATE GUARD] BLOCKED: Team worker not dispatched.\n` +
-        `  Step: ${currentStep}\n` +
-        `  worker_status: standby\n` +
-        `  You must dispatch the worker before modifying files.\n` +
-        `  Run: node .vela/cli/vela-engine.js team-dispatch ${stepTeam.worker_role}`
-      );
-      process.exit(2);
-    }
+    // GUARD 10 REMOVED — Agent Teams provides agent isolation.
+    // Each agent (Executor, Researcher, etc.) runs as a separate Claude instance
+    // with its own CLAUDE.md defining what it can/cannot do.
   }
 
   // ─── GUARD 3: Build/test must pass before git commit ───

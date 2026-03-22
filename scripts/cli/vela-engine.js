@@ -10,10 +10,14 @@
  *   state                                          — Show current pipeline state
  *   transition                                     — Advance to the next step
  *   dispatch [--role ROLE]                         — Get agent specification
- *   record <verdict> [--summary TEXT]              — Record agent result
- *   team-dispatch <role>                           — Dispatch Executor or Leader
- *   team-record <role> <verdict> [--feedback TEXT] — Record team member result
+ *   record <verdict> [--summary TEXT]              — Record step result
+ *   sub-transition                                 — Advance TDD sub-phase
+ *   branch [--mode auto|prompt|none]               — Create feature branch
+ *   commit [--message TEXT]                        — Commit changes
  *   cancel                                         — Cancel active pipeline
+ *
+ * Team coordination uses Claude Code Agent Teams (SendMessage).
+ * Approval tracked via file artifacts (approval-{step}.json).
  *
  * All commands output JSON to stdout.
  */
@@ -38,8 +42,6 @@ const commands = {
   transition: cmdTransition,
   dispatch: cmdDispatch,
   record: cmdRecord,
-  'team-dispatch': cmdTeamDispatch,
-  'team-record': cmdTeamRecord,
   'sub-transition': cmdSubTransition,
   branch: cmdBranch,
   commit: cmdCommit,
@@ -133,7 +135,6 @@ function cmdInit() {
     steps: steps.map(s => s.id),
     completed_steps: [],
     revisions: {},
-    execute_team: null,
     git: gitState.is_repo ? {
       is_repo: true,
       base_branch: gitState.current_branch,
@@ -197,7 +198,6 @@ function cmdState() {
     completed_steps: state.completed_steps,
     remaining_steps: state.steps.filter(s => !state.completed_steps.includes(s)),
     revisions: state.revisions,
-    execute_team: state.execute_team,
     sub_phase: state.sub_phases ? state.sub_phases[state.current_step] || null : null,
     git: state.git || null,
     artifact_dir: state._artifactDir
@@ -256,23 +256,9 @@ function cmdTransition() {
   state.current_step_index = currentIdx + 1;
   state.updated_at = new Date().toISOString();
 
-  // Initialize team when entering a step that has team configuration
-  if (nextStep.team) {
-    if (!state.step_teams) state.step_teams = {};
-    state.step_teams[nextStep.id] = {
-      worker_role: nextStep.team.worker_role,
-      reviewer_role: nextStep.team.reviewer_role,
-      worker_status: 'standby',
-      leader_status: 'standby',
-      iteration: 0,
-      history: [],
-      last_review: null
-    };
-  }
-  // Backward compat: also set execute_team for execute step
-  if (nextStep.id === 'execute' && nextStep.team) {
-    state.execute_team = state.step_teams[nextStep.id];
-  }
+  // Agent Teams: no in-memory team state needed.
+  // Team coordination is handled via Agent Teams (SendMessage)
+  // and file-based artifacts (approval-{step}.json, review-{step}.md).
 
   // Initialize sub-phase tracking if step has sub_phases and tracking enabled
   if (nextStep.sub_phases && nextStep.sub_phase_tracking) {
@@ -359,136 +345,9 @@ function cmdRecord() {
   });
 }
 
-function cmdTeamDispatch() {
-  const role = getArg(0);
-  const allRoles = ['researcher', 'planner', 'executor', 'leader'];
-  if (!role || !allRoles.includes(role.toLowerCase())) {
-    return output({ ok: false, error: `Role required: ${allRoles.join(', ')}` });
-  }
-
-  const state = findActiveState();
-  if (!state) {
-    return output({ ok: false, error: 'No active pipeline.' });
-  }
-
-  const currentStep = state.current_step;
-  const team = getOrCreateTeam(state, currentStep);
-  if (!team) {
-    return output({ ok: false, error: `Step "${currentStep}" does not have team configuration.` });
-  }
-
-  const roleLower = role.toLowerCase();
-  const roleNames = { researcher: 'Vela-Researcher', planner: 'Vela-Planner', executor: 'Vela-Executor', leader: 'Vela-Leader' };
-
-  if (roleLower === 'leader') {
-    team.leader_status = 'reviewing';
-  } else {
-    team.worker_status = 'active';
-    team.iteration++;
-  }
-
-  // Sync execute_team for backward compat
-  if (currentStep === 'execute') state.execute_team = team;
-
-  state.updated_at = new Date().toISOString();
-  writeJSON(state._path, cleanState(state));
-
-  const roleName = roleNames[roleLower] || roleLower;
-  output({
-    ok: true,
-    command: 'team-dispatch',
-    step: currentStep,
-    role: roleLower,
-    role_name: roleName,
-    iteration: team.iteration,
-    message: roleLower === 'leader'
-      ? `${roleName} dispatched. Review the ${roleNames[team.worker_role] || 'worker'}'s work and approve or reject.`
-      : `${roleName} dispatched (iteration ${team.iteration}). Perform the ${currentStep} task.`
-  });
-}
-
-function cmdTeamRecord() {
-  const role = getArg(0);
-  const verdict = getArg(1);
-  const allRoles = ['researcher', 'planner', 'executor', 'leader'];
-
-  if (!role || !allRoles.includes((role || '').toLowerCase())) {
-    return output({ ok: false, error: `Role required: ${allRoles.join(', ')}` });
-  }
-  if (!verdict || !['pass', 'fail', 'reject', 'approve'].includes((verdict || '').toLowerCase())) {
-    return output({ ok: false, error: 'Verdict required: pass, fail, reject, or approve' });
-  }
-
-  const state = findActiveState();
-  if (!state) {
-    return output({ ok: false, error: 'No active pipeline.' });
-  }
-
-  const currentStep = state.current_step;
-  const team = getOrCreateTeam(state, currentStep);
-  if (!team) {
-    return output({ ok: false, error: `Step "${currentStep}" does not have team configuration.` });
-  }
-
-  const feedback = getFlag('--feedback') || '';
-  const roleLower = role.toLowerCase();
-  const verdictLower = verdict.toLowerCase();
-  const roleNames = { researcher: 'Vela-Researcher', planner: 'Vela-Planner', executor: 'Vela-Executor', leader: 'Vela-Leader' };
-  const workerName = roleNames[team.worker_role] || 'Worker';
-
-  const entry = {
-    role: roleLower,
-    verdict: verdictLower,
-    feedback: feedback,
-    iteration: team.iteration,
-    step: currentStep,
-    timestamp: new Date().toISOString()
-  };
-
-  team.history.push(entry);
-
-  if (roleLower === 'leader') {
-    team.leader_status = verdictLower;
-    team.last_review = verdictLower;
-
-    if (verdictLower === 'reject' || verdictLower === 'fail') {
-      team.worker_status = 'standby';
-    } else if (verdictLower === 'approve' || verdictLower === 'pass') {
-      team.worker_status = 'approved';
-      team.leader_status = 'approved';
-    }
-  } else {
-    team.worker_status = verdictLower === 'pass' ? 'done' : 'needs_revision';
-  }
-
-  // Sync execute_team for backward compat
-  if (currentStep === 'execute') state.execute_team = team;
-
-  state.updated_at = new Date().toISOString();
-  writeJSON(state._path, cleanState(state));
-
-  let message;
-  if (roleLower === 'leader' && (verdictLower === 'reject' || verdictLower === 'fail')) {
-    message = `Leader REJECTED. ${workerName} must revise. Feedback: ${feedback || 'none'}`;
-  } else if (roleLower === 'leader' && (verdictLower === 'approve' || verdictLower === 'pass')) {
-    message = `Leader APPROVED. ${currentStep} step can proceed to completion.`;
-  } else {
-    message = `${roleNames[roleLower] || roleLower} recorded: ${verdictLower}`;
-  }
-
-  output({
-    ok: true,
-    command: 'team-record',
-    step: currentStep,
-    role: roleLower,
-    verdict: verdictLower,
-    iteration: team.iteration,
-    feedback: feedback,
-    worker_status: team.worker_status,
-    leader_status: team.leader_status,
-    message
-  });
-}
+// cmdTeamDispatch and cmdTeamRecord REMOVED — replaced by Agent Teams.
+// Team coordination now uses SendMessage between agents.
+// Approval tracked via file-based artifacts (approval-{step}.json).
 
 function cmdSubTransition() {
   const state = findActiveState();
@@ -738,41 +597,7 @@ function cmdCancel() {
 
 // ─── Helpers ───
 
-/**
- * Get or create team object for the current step.
- * Returns null if the step doesn't have team configuration.
- */
-function getOrCreateTeam(state, stepId) {
-  // Check step_teams first
-  if (state.step_teams && state.step_teams[stepId]) {
-    return state.step_teams[stepId];
-  }
-
-  // Check execute_team for backward compat
-  if (stepId === 'execute' && state.execute_team) {
-    return state.execute_team;
-  }
-
-  // Check if step has team config in pipeline definition
-  const pipelineDef = loadPipelineDefinition();
-  const steps = resolveSteps(pipelineDef, state.pipeline_type);
-  const stepDef = steps.find(s => s.id === stepId);
-  if (!stepDef || !stepDef.team) return null;
-
-  // Create team on the fly
-  if (!state.step_teams) state.step_teams = {};
-  state.step_teams[stepId] = {
-    worker_role: stepDef.team.worker_role,
-    reviewer_role: stepDef.team.reviewer_role,
-    worker_status: 'standby',
-    leader_status: 'standby',
-    iteration: 0,
-    history: [],
-    last_review: null
-  };
-
-  return state.step_teams[stepId];
-}
+// getOrCreateTeam REMOVED — Agent Teams handles team state via SendMessage.
 
 function findActiveState() {
   if (!fs.existsSync(ARTIFACTS_DIR)) return null;
@@ -899,29 +724,47 @@ function checkExitGate(stepDef, state) {
         }
         break;
       case 'leader_approved':
-        // Generic: check if the current step's team leader has approved
-        if (state.step_teams && state.step_teams[state.current_step]) {
-          const t = state.step_teams[state.current_step];
-          if (t.leader_status !== 'approved') {
-            missing.push(`leader_approval_${state.current_step}`);
+        // File-based: Leader agent writes approval-{step}.json with decision: "approve"
+        if (artifactDir) {
+          const approvalPath = path.join(artifactDir, `approval-${state.current_step}.json`);
+          if (!fs.existsSync(approvalPath)) {
+            missing.push(`leader_approval_missing:approval-${state.current_step}.json`);
+          } else {
+            try {
+              const approval = JSON.parse(fs.readFileSync(approvalPath, 'utf-8'));
+              if (approval.decision !== 'approve') {
+                missing.push(`leader_rejected:${state.current_step}`);
+              }
+            } catch (e) {
+              missing.push(`leader_approval_invalid:${state.current_step}`);
+            }
           }
         }
         break;
       case 'leader_review_exists':
-        // Leader must write review.md before approve is accepted
+        // Reviewer agent writes review-{step}.md
         if (artifactDir) {
           const reviewPath = path.join(artifactDir, `review-${state.current_step}.md`);
           if (!fs.existsSync(reviewPath)) {
-            missing.push(`leader_review_missing:review-${state.current_step}.md`);
+            missing.push(`review_missing:review-${state.current_step}.md`);
           }
         }
         break;
       case 'implementation_complete':
-        // Check if execute team approved (if team was used)
-        const execTeam = (state.step_teams && state.step_teams.execute) || state.execute_team;
-        if (execTeam) {
-          if (execTeam.leader_status !== 'approved') {
-            missing.push('leader_approval');
+        // File-based: approval-execute.json must exist with decision: "approve"
+        if (artifactDir) {
+          const execApprovalPath = path.join(artifactDir, 'approval-execute.json');
+          if (!fs.existsSync(execApprovalPath)) {
+            missing.push('leader_approval_missing:approval-execute.json');
+          } else {
+            try {
+              const approval = JSON.parse(fs.readFileSync(execApprovalPath, 'utf-8'));
+              if (approval.decision !== 'approve') {
+                missing.push('leader_rejected:execute');
+              }
+            } catch (e) {
+              missing.push('leader_approval_invalid:execute');
+            }
           }
         }
         break;
