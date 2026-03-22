@@ -65,6 +65,18 @@ function cmdInit() {
     return output({ ok: false, error: 'Request description required. Usage: vela-engine init "task description"' });
   }
 
+  // Block if there's already an active pipeline
+  const existing = findActiveState();
+  if (existing && !hasFlag('--force')) {
+    return output({
+      ok: false,
+      error: 'Active pipeline already exists.',
+      current_step: existing.current_step,
+      request: existing.request,
+      hint: 'Complete or cancel the current pipeline first: vela-engine cancel'
+    });
+  }
+
   const type = getFlag('--type') || 'code';
   const scale = getFlag('--scale') || autoDetectScale(request);
   const pipelineType = scaleToPipeline(scale);
