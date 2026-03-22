@@ -227,7 +227,7 @@ node .vela/cli/vela-engine.js init "작업 설명" [--type code] [--scale large]
 
 #### 3. Plan (구현 계획)
 - **모드**: write
-- **팀**: Vela-Planner → **Vela-Reviewer (subagent)** → Vela-Leader
+- **팀**: Vela-Planner → **Vela-Reviewer** → Vela-Leader (각 독립 에이전트)
 - **수행**: 아키텍처 설계, 클래스 명세서, 테스트 전략 작성
 - **Architecture Gate**: `## Architecture`, `## Class Specification`, `## Test Strategy` 섹션이 없거나 200bytes 미만이면 전이 차단
 - **Reviewer**: 아키텍처 품질을 5개 관점(Layer Separation, DDD, SOLID, Test Strategy, Class Spec)에서 X/25로 평가
@@ -259,7 +259,7 @@ node .vela/cli/vela-engine.js branch [--mode auto|prompt|none]
 
 #### 7. Execute (구현)
 - **모드**: readwrite (읽기/쓰기 모두 허용)
-- **팀**: Vela-Executor → **Vela-Reviewer (subagent)** → Vela-Leader
+- **팀**: Vela-Executor → **Vela-Reviewer** → Vela-Leader (각 독립 에이전트)
 - **TDD Sub-Phases** (standard 파이프라인):
   - `test-write` (Red) → 테스트 먼저 작성
   - `implement` (Green) → 테스트 통과하는 코드 작성
@@ -298,76 +298,66 @@ node .vela/cli/vela-engine.js commit [--message "custom message"]
 
 ---
 
-## 팀 메커니즘
+## 팀 메커니즘 — Agent Teams
 
-Research, Plan, Execute 단계에서 **3단계 검증 구조**가 활성화된다:
-Worker(작업) → Reviewer(독립 점검) → Leader(최종 판단).
+Research, Plan, Execute 단계에서 **Claude Code Agent Teams**를 사용한다.
+모든 역할이 **독립 Claude 인스턴스**로 실행되며, 별도 컨텍스트를 가진다.
 
 ### 팀 구성
 
 | 역할 | 실행 방식 | 책임 |
 |------|----------|------|
-| **PM** | 같은 세션 | 파이프라인 조율, 모든 역할 소환 |
-| **Vela-Researcher** | 같은 세션 | 프로젝트 분석, research.md 작성 |
-| **Vela-Planner** | 같은 세션 | 아키텍처 설계, 클래스 명세서, plan.md 작성 |
-| **Vela-Executor** | 같은 세션 | 코드 구현, 테스트 작성 |
-| **Vela-Reviewer** | **독립 subagent** | 산출물 품질 점검 — Worker의 맥락 없이 편향 없는 평가 |
-| **Vela-Leader** | 같은 세션 | Reviewer 리포트 기반 최종 approve/reject |
+| **PM (Team Lead)** | 메인 세션 | 파이프라인 조율, 에이전트 소환/종료, 엔진 명령 실행 |
+| **Vela-Researcher** | **독립 에이전트** | 프로젝트 분석, research.md 작성 |
+| **Vela-Planner** | **독립 에이전트** | 아키텍처 설계, 클래스 명세서, plan.md 작성 |
+| **Vela-Executor** | **독립 에이전트** | TDD 기반 코드 구현 |
+| **Vela-Reviewer** | **독립 에이전트** | 산출물 품질 점검, review-{step}.md 작성 (X/25 점수) |
+| **Vela-Leader** | **독립 에이전트** | Reviewer 리포트 기반 최종 판단, approval-{step}.json 작성 |
 
-### 왜 Reviewer를 독립 subagent로 분리하는가?
+각 에이전트의 지시사항은 `.vela/agents/` 디렉토리에 정의:
+`researcher.md`, `planner.md`, `executor.md`, `reviewer.md`, `leader.md`
 
-같은 세션의 Leader는 Worker의 사고 과정을 공유하기 때문에 형식적으로 approve하는 경향이 있다.
-테스트 결과 Leader만 사용했을 때 **5개 프로젝트 중 0개에서 reject이 발생**했다.
+### 왜 Agent Teams인가?
 
-Reviewer subagent를 추가한 후 **5개 프로젝트 중 4개에서 reject이 발생**하고,
-평균 아키텍처 점수가 **+5점 향상**되었다.
+같은 세션에서 모든 역할을 수행하면 형식적 approve 경향이 발생한다.
+테스트 결과:
 
-| | V1 (Leader만) | V2 (Reviewer → Leader) |
+| | 같은 세션 (V1) | 독립 에이전트 (V2) |
 |---|---|---|
 | Plan reject 발생 | 0/5 (0%) | 4/5 (80%) |
 | Critical/High 이슈 발견 | 0개 | 14개 |
 | 최악 사례 (Upload) | 10/25 | 24/25 |
 
+독립 에이전트는 Worker의 사고 과정을 공유하지 않으므로 편향 없는 판단이 가능하다.
+
 ### 실행 루프
 
 ```
-PM → Worker 소환 (team-dispatch researcher/planner/executor)
-     → Worker 작업 수행 (research.md / plan.md / 코드 수정)
-     → PM → Reviewer subagent 소환 (Agent 도구, 독립 컨텍스트)
-          → Reviewer: 산출물만 읽고 품질 리포트 생성 → review-{step}.md
-     → PM → Leader 소환 (team-dispatch leader)
-     → Leader: Reviewer 리포트의 critical/high 이슈를 반드시 처리
-         ├─ approve (이슈 없거나 해결됨) → 단계 완료
-         └─ reject + 피드백 → Worker 재소환 (iteration 증가)
+PM(Team Lead)
+  → Worker 에이전트 소환 (Agent 도구)
+     → Worker: 독립 컨텍스트에서 작업 → 산출물 작성
+  → Reviewer 에이전트 소환
+     → Reviewer: 산출물만 읽고 review-{step}.md 작성 (점수 + 이슈)
+  → Leader 에이전트 소환
+     → Leader: Reviewer 리포트 + 산출물 읽고 approval-{step}.json 작성
+        ├─ approve → PM이 vela-engine transition 호출
+        └─ reject → PM이 Worker에게 피드백 전달 → 재작업
 ```
 
-### Reviewer Subagent 소환 방법
+### 승인 메커니즘 — 파일 기반
 
-PM이 Agent 도구로 Reviewer를 소환:
+- **Reviewer** → `review-{step}.md` (점수 X/25, 이슈 목록)
+- **Leader** → `approval-{step}.json` (`decision: "approve"` 또는 `"reject"`)
+- 엔진 exit gate가 `approval-{step}.json` 확인
+- 파일이 없거나 `approve`가 아니면 **transition 차단**
 
-```
-Agent 도구 사용:
-  prompt: "You are an INDEPENDENT ARCHITECTURE REVIEWER.
-           Read {artifact_path} and evaluate against
-           Clean Architecture, DDD, OOP, TDD.
-           Score each: Layer Separation, DDD Patterns, SOLID,
-           Test Strategy, Class Spec Completeness (각 X/5).
-           List issues by severity (critical/high/medium/low).
-           Save to {artifact_dir}/review-{step}.md.
-           Be HARSH and CRITICAL."
-```
-
-### 명령어
-
-```bash
-# Worker 소환 및 결과 기록
-node .vela/cli/vela-engine.js team-dispatch researcher|planner|executor
-node .vela/cli/vela-engine.js team-record researcher|planner|executor pass
-
-# Leader 검토 (Reviewer 리포트 확인 후)
-node .vela/cli/vela-engine.js team-dispatch leader
-node .vela/cli/vela-engine.js team-record leader approve
-node .vela/cli/vela-engine.js team-record leader reject --feedback "피드백 내용"
+```json
+{
+  "step": "plan",
+  "decision": "approve",
+  "reviewer_score": "22/25",
+  "justification": "모든 critical 이슈 해결됨"
+}
 ```
 
 ---
@@ -484,10 +474,14 @@ Claude Code 시스템 레벨에서 차단. 어떤 범위에서든 deny = 허용 
         ├── meta.json                  ← 요청 메타데이터
         ├── pipeline-state.json        ← 파이프라인 상태 (엔진 전용)
         ├── research.md                ← 리서치 결과
+        ├── review-research.md         ← Reviewer 리서치 리뷰
+        ├── approval-research.json     ← Leader 리서치 승인
         ├── plan.md                    ← 아키텍처 설계 + 클래스 명세서
-        ├── plan-check.md              ← 계획 검증
         ├── review-plan.md             ← Reviewer 아키텍처 리뷰
+        ├── approval-plan.json         ← Leader 계획 승인
+        ├── plan-check.md              ← 계획 검증
         ├── review-execute.md          ← Reviewer 구현 리뷰
+        ├── approval-execute.json      ← Leader 구현 승인
         ├── verification.md            ← 구현 검증
         ├── report.md                  ← 최종 보고서
         ├── diff.patch                 ← 변경사항 diff
@@ -572,10 +566,6 @@ vela-engine transition                                   # 다음 단계 전이
 vela-engine dispatch [--role ROLE]                       # 에이전트 스펙
 vela-engine record pass|fail|reject [--summary TEXT]     # 결과 기록
 vela-engine cancel                                       # 파이프라인 취소
-
-# 팀 관리
-vela-engine team-dispatch researcher|planner|executor|leader
-vela-engine team-record <role> pass|fail|reject|approve [--feedback TEXT]
 
 # Sub-Phase 관리
 vela-engine sub-transition                               # sub-phase 전진
