@@ -188,8 +188,8 @@ function install() {
   }
   settings.permissions.allow = [...existingAllow];
 
-  // ─── Set default agent to vela-pm ───
-  settings.agent = 'vela-pm';
+  // ─── Set default agent to vela ───
+  settings.agent = 'vela';
 
   writeSettings(settings);
 
@@ -199,13 +199,13 @@ function install() {
     fs.mkdirSync(stateDir, { recursive: true });
   }
 
-  // ─── Deploy vela-pm agent ───
+  // ─── Deploy vela agent ───
   const agentsDir = path.join(PROJECT_ROOT, '.claude', 'agents');
   if (!fs.existsSync(agentsDir)) {
     fs.mkdirSync(agentsDir, { recursive: true });
   }
-  const pmSourcePath = path.join(PROJECT_ROOT, '.vela', 'agents', 'vela-pm.md');
-  const pmTargetPath = path.join(agentsDir, 'vela-pm.md');
+  const pmSourcePath = path.join(PROJECT_ROOT, '.vela', 'agents', 'vela.md');
+  const pmTargetPath = path.join(agentsDir, 'vela.md');
   if (fs.existsSync(pmSourcePath)) {
     fs.copyFileSync(pmSourcePath, pmTargetPath);
   }
@@ -231,7 +231,7 @@ This project uses Vela for development governance.
     ok: errors.length === 0,
     command: 'install',
     installed: installed,
-    agent: 'vela-pm',
+    agent: 'vela',
     claude_md: !fs.existsSync(claudeMdPath) ? 'created' : 'exists',
     permissions: {
       deny_rules: VELA_PERMISSIONS.deny.length,
@@ -240,7 +240,7 @@ This project uses Vela for development governance.
     errors: errors,
     settings_path: SETTINGS_PATH,
     message: errors.length === 0
-      ? `Successfully installed ${installed.length} Vela hooks + ${permissionCount} permission rules + vela-pm agent.`
+      ? `Successfully installed ${installed.length} Vela hooks + ${permissionCount} permission rules + vela agent.`
       : `Installed ${installed.length} hooks with ${errors.length} errors.`
   }, null, 2));
 }

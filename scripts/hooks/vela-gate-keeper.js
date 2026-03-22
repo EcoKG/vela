@@ -78,7 +78,7 @@ async function main() {
 
     if (hasWritePattern && currentMode === 'read') {
       process.stderr.write(
-        `[VELA GATE KEEPER] BLOCKED: Bash write command in read-only mode.\n` +
+        `⛵ [Vela] ✦ BLOCKED: Bash write command in read-only mode.\n` +
         `  Mode: ${currentMode}\n` +
         `  Command: ${cmd.substring(0, 100)}\n` +
         `  Use Vela CLI tools instead: .vela/cli/vela-write`
@@ -88,7 +88,7 @@ async function main() {
 
     // Block all other bash commands
     process.stderr.write(
-      `[VELA GATE KEEPER] BLOCKED: Bash is restricted in Vela sandbox.\n` +
+      `⛵ [Vela] ✦ BLOCKED: Bash is restricted in Vela sandbox.\n` +
       `  Command: ${cmd.substring(0, 100)}\n` +
       `  Use Vela CLI tools instead (.vela/cli/vela-read, .vela/cli/vela-write)\n` +
       `  Or use Claude Code's built-in Read/Write/Edit/Glob/Grep tools.`
@@ -105,7 +105,7 @@ async function main() {
     if (targetFile.includes('.vela/')) {
       if (path.basename(targetFile) === 'pipeline-state.json') {
         process.stderr.write(
-          `[VELA GATE KEEPER] BLOCKED: Cannot directly modify pipeline-state.json.\n` +
+          `⛵ [Vela] ✦ BLOCKED: Cannot directly modify pipeline-state.json.\n` +
           `  Pipeline state is managed exclusively by the Vela engine.`
         );
         process.exit(2);
@@ -114,7 +114,7 @@ async function main() {
     }
 
     process.stderr.write(
-      `[VELA GATE KEEPER] BLOCKED: Write operation in read-only mode.\n` +
+      `⛵ [Vela] ✦ BLOCKED: Write operation in read-only mode.\n` +
       `  Tool: ${tool_name}\n` +
       `  Target: ${targetFile}\n` +
       `  Current step requires read-only mode.\n` +
@@ -138,7 +138,7 @@ async function main() {
       }
 
       process.stderr.write(
-        `[VELA GATE KEEPER] BLOCKED: Cannot write to sensitive file.\n` +
+        `⛵ [Vela] ✦ BLOCKED: Cannot write to sensitive file.\n` +
         `  File: ${targetFile}\n` +
         `  Protected files: ${SENSITIVE_FILES.join(', ')}\n` +
         `  Use .env.example or .env.template instead.`
@@ -153,7 +153,7 @@ async function main() {
     for (const pattern of SECRET_PATTERNS) {
       if (pattern.test(content)) {
         process.stderr.write(
-          `[VELA GATE KEEPER] BLOCKED: Potential secret/credential detected in write.\n` +
+          `⛵ [Vela] ✦ BLOCKED: Potential secret/credential detected in write.\n` +
           `  Tool: ${tool_name}\n` +
           `  Pattern matched: ${pattern.source.substring(0, 40)}...\n` +
           `  Never embed secrets in source code. Use environment variables.`
@@ -169,7 +169,7 @@ async function main() {
     const inSkipPath = SKIP_PATHS.some(sp => targetFile.includes(sp));
     if (inSkipPath && !targetFile.includes('.vela/')) {
       process.stdout.write(
-        `[VELA GATE KEEPER] WARNING: Writing to a typically excluded path.\n` +
+        `⛵ [Vela] ⚠ WARNING: Writing to a typically excluded path.\n` +
         `  File: ${targetFile}\n` +
         `  This path is normally skipped during analysis.`
       );

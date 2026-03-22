@@ -84,11 +84,11 @@ async function main() {
   sessionState.tool_count = (sessionState.tool_count || 0) + 1;
 
   if (sessionState.tool_count === 100) {
-    output.push('[VELA TRACKER] Context pressure: MEDIUM (100 tool calls). Consider completing current step.');
+    output.push('🔭 [Vela] Context pressure: MEDIUM (100 tool calls). Consider completing current step.');
   } else if (sessionState.tool_count === 150) {
-    output.push('[VELA TRACKER] Context pressure: HIGH (150 tool calls). Finalize current work soon.');
+    output.push('🔭 [Vela] Context pressure: HIGH (150 tool calls). Finalize current work soon.');
   } else if (sessionState.tool_count >= 180 && sessionState.tool_count % 10 === 0) {
-    output.push('[VELA TRACKER] Context pressure: CRITICAL. Complete pipeline step immediately.');
+    output.push('🔭 [Vela] Context pressure: CRITICAL. Complete pipeline step immediately.');
   }
 
   try {
@@ -114,7 +114,7 @@ async function main() {
         appendSignal(velaDir, signal);
 
         if (isFail) {
-          output.push(`[VELA TRACKER] ${bp.type.toUpperCase()} FAILED — fix before proceeding.`);
+          output.push(`🔭 [Vela] ${bp.type.toUpperCase()} FAILED — fix before proceeding.`);
         }
         break;
       }

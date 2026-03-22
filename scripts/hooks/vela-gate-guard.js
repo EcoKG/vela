@@ -57,7 +57,7 @@ async function main() {
         process.exit(0);
       }
       process.stderr.write(
-        `[VELA GATE GUARD] BLOCKED: No active pipeline (Explore mode).\n` +
+        `🌟 [Vela] ✦ BLOCKED: No active pipeline (Explore mode).\n` +
         `  Tool: ${tool_name}\n` +
         `  To modify code: node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>`
       );
@@ -74,7 +74,7 @@ async function main() {
   const BLOCKED_TASK_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet']);
   if (BLOCKED_TASK_TOOLS.has(tool_name)) {
     process.stderr.write(
-      `[VELA GATE GUARD] BLOCKED: Claude task tools disabled during Vela pipeline.\n` +
+      `🌟 [Vela] ✦ BLOCKED: Claude task tools disabled during Vela pipeline.\n` +
       `  Use Vela pipeline steps instead.\n` +
       `  Current step: ${state.current_step}\n` +
       `  Advance with: node .vela/cli/vela-engine.js transition`
@@ -90,7 +90,7 @@ async function main() {
         const counter = JSON.parse(fs.readFileSync(counterPath, 'utf-8'));
         if (counter.step === state.current_step && counter.count > 5) {
           process.stdout.write(
-            `[VELA GATE GUARD] WARNING: ${counter.count} reads in "${state.current_step}" step.\n` +
+            `🌟 [Vela] ⚠ WARNING: ${counter.count} reads in "${state.current_step}" step.\n` +
             `  Extensive reading belongs in the research step.\n` +
             `  Current step: ${state.current_step}`
           );
@@ -113,7 +113,7 @@ async function main() {
       const researchPath = path.join(artifactDir, 'research.md');
       if (!fs.existsSync(researchPath)) {
         process.stderr.write(
-          `[VELA GATE GUARD] BLOCKED: Cannot create plan without research.\n` +
+          `🌟 [Vela] ✦ BLOCKED: Cannot create plan without research.\n` +
           `  research.md must exist before plan.md.\n` +
           `  Current step: ${currentStep}\n` +
           `  Complete the research step first.`
@@ -134,7 +134,7 @@ async function main() {
       // approval-*.json MUST be written by Leader agent, not PM
       if (protectedFile === 'pipeline-state.json') {
         process.stderr.write(
-          `[VELA GATE GUARD] BLOCKED: Cannot directly modify pipeline-state.json.\n` +
+          `🌟 [Vela] ✦ BLOCKED: Cannot directly modify pipeline-state.json.\n` +
           `  Pipeline state is managed exclusively by the Vela engine.\n` +
           `  Use: node .vela/cli/vela-engine.js transition`
         );
@@ -160,7 +160,7 @@ async function main() {
     const executeReached = isStepReached(state, pipelineDef, 'execute');
     if (!executeReached) {
       process.stderr.write(
-        `[VELA GATE GUARD] BLOCKED: Source code modification before execute step.\n` +
+        `🌟 [Vela] ✦ BLOCKED: Source code modification before execute step.\n` +
         `  File: ${targetFile}\n` +
         `  Current step: ${currentStep}\n` +
         `  Source code can only be modified during the execute step.\n` +
@@ -189,7 +189,7 @@ async function main() {
           );
           if (recentFail) {
             process.stderr.write(
-              `[VELA GATE GUARD] BLOCKED: Cannot commit with failed build/tests.\n` +
+              `🌟 [Vela] ✦ BLOCKED: Cannot commit with failed build/tests.\n` +
               `  Recent build or test failure detected.\n` +
               `  Fix the issues and re-run tests before committing.`
             );
@@ -211,7 +211,7 @@ async function main() {
       const verificationPath = path.join(artifactDir, 'verification.md');
       if (!fs.existsSync(verificationPath)) {
         process.stderr.write(
-          `[VELA GATE GUARD] BLOCKED: Cannot create report without verification.\n` +
+          `🌟 [Vela] ✦ BLOCKED: Cannot create report without verification.\n` +
           `  verification.md must exist before report.md.\n` +
           `  Complete the verification step first.`
         );
@@ -227,7 +227,7 @@ async function main() {
 
     if (fileName === 'pipeline-state.json') {
       process.stderr.write(
-        `[VELA GATE GUARD] BLOCKED: Cannot directly modify pipeline-state.json.\n` +
+        `🌟 [Vela] ✦ BLOCKED: Cannot directly modify pipeline-state.json.\n` +
         `  Pipeline state is managed exclusively by the Vela engine.\n` +
         `  Use the engine CLI: node .vela/cli/vela-engine.js transition`
       );
@@ -242,7 +242,7 @@ async function main() {
       const currentRevisions = state.revisions[currentStep] || 0;
       if (currentRevisions >= stepDef.max_revisions) {
         process.stderr.write(
-          `[VELA GATE GUARD] BLOCKED: Revision limit reached for step "${currentStep}".\n` +
+          `🌟 [Vela] ✦ BLOCKED: Revision limit reached for step "${currentStep}".\n` +
           `  Max revisions: ${stepDef.max_revisions}\n` +
           `  Current revisions: ${currentRevisions}\n` +
           `  Transition to the next step or request user approval to continue.`
@@ -259,7 +259,7 @@ async function main() {
       const allowedSteps = ['execute', 'commit', 'finalize'];
       if (!allowedSteps.includes(currentStep)) {
         process.stderr.write(
-          `[VELA GATE GUARD] BLOCKED: Git commit only allowed during execute/commit/finalize steps.\n` +
+          `🌟 [Vela] ✦ BLOCKED: Git commit only allowed during execute/commit/finalize steps.\n` +
           `  Current step: ${currentStep}\n` +
           `  Use the Vela engine: node .vela/cli/vela-engine.js commit`
         );
@@ -275,7 +275,7 @@ async function main() {
       const verifyReached = isStepReached(state, pipelineDef, 'verify');
       if (!verifyReached) {
         process.stderr.write(
-          `[VELA GATE GUARD] BLOCKED: Git push only allowed after verification step.\n` +
+          `🌟 [Vela] ✦ BLOCKED: Git push only allowed after verification step.\n` +
           `  Current step: ${currentStep}\n` +
           `  Complete verification before pushing.`
         );
@@ -292,7 +292,7 @@ async function main() {
       const currentBranch = state.git.current_branch || state.git.base_branch;
       if (protectedBranches.includes(currentBranch)) {
         process.stdout.write(
-          `[VELA GATE GUARD] WARNING: Committing to protected branch "${currentBranch}".\n` +
+          `🌟 [Vela] ⚠ WARNING: Committing to protected branch "${currentBranch}".\n` +
           `  Consider creating a feature branch: git checkout -b vela/<feature-name>`
         );
       }

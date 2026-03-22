@@ -45,16 +45,16 @@ async function main() {
 
   // ─── Session Health Check (first prompt only) ───
   if (isFirstPrompt) {
-    output.push('━━━ VELA ENGINE v1.0 ━━━');
-    output.push(`Sandbox: ACTIVE | Mode: auto-detect`);
+    output.push('✦ Vela Engine v1.2 ✦');
+    output.push(`⛵ Sandbox: ACTIVE | Mode: auto-detect`);
 
     const hooks = ['vela-gate-keeper', 'vela-gate-guard', 'vela-orchestrator', 'vela-tracker'];
     const hookStatus = hooks.map(h => {
       const hookPath = path.join(velaDir, 'hooks', `${h}.js`);
-      return `${fs.existsSync(hookPath) ? '✓' : '✗'} ${h}`;
+      return `${fs.existsSync(hookPath) ? '✓' : '✗'} ${h.replace('vela-', '')}`;
     });
-    output.push(`Hooks: ${hookStatus.join(' | ')}`);
-    output.push('━━━━━━━━━━━━━━━━━━━━━━━');
+    output.push(`🔭 Hooks: ${hookStatus.join(' | ')}`);
+    output.push('✦─────────────────────✦');
 
     // Create session state
     try {
@@ -89,7 +89,7 @@ async function main() {
     }
 
     output.push('');
-    output.push(`┌─ VELA PIPELINE ─────────────────────`);
+    output.push(`🧭 Pipeline ──────────────────────────`);
     output.push(`│ Type: ${state.pipeline_type || 'standard'}`);
     output.push(`│ Step: ${state.current_step} (${stepDef ? stepDef.name : 'unknown'})`);
     output.push(`│ Mode: ${stepDef ? stepDef.mode : 'read'}`);
@@ -101,7 +101,7 @@ async function main() {
     // Show team step info (Agent Teams)
     if (stepDef && stepDef.team) {
       output.push(`│`);
-      output.push(`│ ┌─ AGENT TEAMS ────────────────────`);
+      output.push(`│ 🌟 Agent Teams ───────────────────`);
       output.push(`│ │ Worker: ${stepDef.team.worker_role}`);
       output.push(`│ │ Reviewer: independent subagent`);
       output.push(`│ │ Leader: independent agent`);
@@ -141,8 +141,8 @@ async function main() {
   } else {
     // No active pipeline — Explore mode
     output.push('');
-    output.push(`[VELA] Explore mode active. Reads allowed. Writes blocked.`);
-    output.push(`  To modify code: node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>`);
+    output.push(`⛵ Vela — Explore mode. Reads allowed, writes blocked.`);
+    output.push(`  🧭 To modify code: node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>`);
   }
 
   if (output.length > 0) {
