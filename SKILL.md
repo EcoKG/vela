@@ -3,18 +3,41 @@ name: vela
 description: "⛵ Vela 샌드박스 엔진. /vela:init 으로 프로젝트에 Vela 환경을 구축하고, /vela:start 로 바로 파이프라인을 시작한다 (init이 안 되어 있으면 자동으로 init 먼저 수행). Claude Code의 모든 행위를 파이프라인 기반으로 통제하는 샌드박스 시스템. 사용자가 프로젝트 환경 구축, 개발 파이프라인 설정, 코드 수정, 리팩토링, 기능 추가 등을 요청할 때 이 스킬을 사용해야 한다. Vela, 벨라, 샌드박스, 파이프라인, 시작, start, init 등의 키워드가 언급되면 이 스킬을 트리거한다."
 ---
 
-# Vela Engine v1.0 — Sandbox Development System
+# ⛵ Vela Engine v1.3 — Sandbox Development System
 
-Vela는 Claude Code를 완전히 감싸는 샌드박스 엔진이다. Claude Code는 독자적으로 작동할 수 없으며, 모든 세션과 행위는 Vela 엔진의 파이프라인을 통해 진행된다.
+Vela는 Claude Code를 완전히 감싸는 샌드박스 엔진이다.
 
-## 핵심 원칙
+## /vela 호출 시
 
-1. **샌드박스 강제**: Claude Code의 모든 행위는 Vela 파이프라인 안에서만 실행된다
-2. **Gate Keeper (수문장)**: 읽기/쓰기 접근을 모드에 따라 차단/허용한다
-3. **Gate Guard (가이드라인)**: 파이프라인 이탈 시 강제 복귀시킨다. 무시/우회/변형 불가
-4. **커스텀 CLI**: Bash 대신 Vela의 독자 CLI 도구를 사용한다
-5. **TreeNode 캐시**: 읽기전용 탐색 결과를 SQLite로 캐싱해서 재탐색을 방지한다
-6. **훅 제어**: 모든 행위는 훅을 통해 무조건 제어된다
+`$ARGUMENTS`를 확인한다:
+- `$ARGUMENTS`가 `init` → `/vela:init` 절차 실행
+- `$ARGUMENTS`가 `start` 또는 `start <작업설명>` → `/vela:start` 절차 실행
+- `$ARGUMENTS`가 비어있음 → AskUserQuestion으로 선택:
+
+```json
+{
+  "questions": [{
+    "question": "⛵ Vela — 무엇을 하시겠습니까?",
+    "header": "⛵ Vela",
+    "options": [
+      {
+        "label": "파이프라인 시작 (Recommended)",
+        "description": "작업을 시작합니다. Vela 환경이 없으면 자동으로 구축합니다."
+      },
+      {
+        "label": "환경 구축만",
+        "description": "이 프로젝트에 Vela 환경(.vela/)을 설치합니다. 파이프라인은 시작하지 않습니다."
+      }
+    ],
+    "multiSelect": false
+  }]
+}
+```
+
+- "파이프라인 시작" → `/vela:start` 절차
+- "환경 구축만" → `/vela:init` 절차
+
+---
 
 ## /vela:start — 파이프라인 바로 시작
 
