@@ -1,6 +1,6 @@
 ---
 name: vela
-description: "Vela 샌드박스 엔진을 프로젝트에 구축하는 스킬. Claude Code의 모든 행위를 파이프라인 기반으로 통제하는 완전한 샌드박스 시스템을 설치하고 운영한다. /vela:vela-init 으로 프로젝트에 Vela 환경을 구축한다. Gate Keeper(수문장)가 읽기/쓰기를 통제하고, Gate Guard(가이드라인)가 파이프라인 이탈을 차단하며, 커스텀 CLI로 모든 파일 작업을 수행한다. 사용자가 프로젝트 환경 구축, 개발 파이프라인 설정, 샌드박스 기반 개발 시스템이 필요할 때 반드시 이 스킬을 사용해야 한다. Vela, 벨라, 샌드박스, 파이프라인, 게이트, 엔진 등의 키워드가 언급되면 이 스킬을 트리거한다."
+description: "⛵ Vela 샌드박스 엔진. /vela:vela-init 으로 프로젝트에 Vela 환경을 구축하고, /vela:start 로 바로 파이프라인을 시작한다. Claude Code의 모든 행위를 파이프라인 기반으로 통제하는 샌드박스 시스템. Gate Keeper(수문장)가 읽기/쓰기를 통제하고, Gate Guard(가이드라인)가 파이프라인 이탈을 차단한다. 사용자가 프로젝트 환경 구축, 개발 파이프라인 설정, 코드 수정, 리팩토링, 기능 추가 등을 요청할 때 이 스킬을 사용해야 한다. Vela, 벨라, 샌드박스, 파이프라인, 시작, start 등의 키워드가 언급되면 이 스킬을 트리거한다."
 ---
 
 # Vela Engine v1.0 — Sandbox Development System
@@ -15,6 +15,40 @@ Vela는 Claude Code를 완전히 감싸는 샌드박스 엔진이다. Claude Cod
 4. **커스텀 CLI**: Bash 대신 Vela의 독자 CLI 도구를 사용한다
 5. **TreeNode 캐시**: 읽기전용 탐색 결과를 SQLite로 캐싱해서 재탐색을 방지한다
 6. **훅 제어**: 모든 행위는 훅을 통해 무조건 제어된다
+
+## /vela:start — 파이프라인 바로 시작
+
+이 커맨드가 호출되면 Vela 파이프라인을 즉시 시작한다.
+`.vela/` 가 이미 설치되어 있어야 한다 (없으면 `/vela:vela-init`을 먼저 실행).
+
+### 절차
+
+1. **Vela 설치 확인**
+   `.vela/config.json`이 존재하는지 확인한다.
+   없으면 사용자에게 "먼저 /vela 로 환경을 구축해주세요"라고 안내한다.
+
+2. **작업 내용 수집**
+   사용자에게 질문한다:
+   - "어떤 작업을 진행할까요?" → 작업 설명 수집
+
+3. **파이프라인 규모 선택**
+   사용자에게 선택지를 제시한다:
+   - ⛵ **small**: trivial (init → execute → commit → finalize) — 단일 파일, 10줄 이하
+   - 🧭 **medium**: quick (init → plan → execute → verify → commit → finalize) — 3파일 이하
+   - ✦ **large**: standard (full 10-step with research, plan, team review) — 대규모 작업
+
+4. **파이프라인 시작**
+   ```bash
+   node .vela/cli/vela-engine.js init "작업 설명" --scale <small|medium|large> --type <code|code-bug|code-refactor|docs>
+   ```
+
+5. **파이프라인 진행**
+   `.vela/agents/vela.md`의 지시사항에 따라 파이프라인 단계를 순서대로 진행한다.
+   - standard: Agent Teams (research) + Subagent (plan/execute) + Reviewer
+   - quick: Subagent만 사용
+   - trivial: PM 직접 수행
+
+---
 
 ## /vela:vela-init — 환경 구축
 
