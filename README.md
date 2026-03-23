@@ -125,15 +125,20 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 
 ## 팀 메커니즘
 
-### 단계별 배분
+### 전부 Agent Teams
 
-| 단계 | 방식 | 근거 |
-|------|------|------|
-| **Research** | **Agent Teams** (3명 병렬) | 다각도 병렬 조사 |
-| **Plan** | **Subagent** (1명) | 단일 일관된 설계 |
-| **Execute** | **Subagent** 또는 **Agent Teams** | 규모에 따라 |
-| **Reviewer** | **Subagent** (항상 1명) | 집중 평가 |
-| **Leader** | **PM 겸임** | Agent Teams에서 Lead만 approve 가능 |
+파이프라인 시작 시 `TeamCreate`로 팀 1회 생성, 모든 단계에서 같은 팀에 teammates 소환.
+
+| 역할 | 실행 방식 | 소환 단계 |
+|------|----------|----------|
+| **PM (Team Lead)** | 메인 세션 | 전 단계 조율 |
+| **Researcher** (3명) | **Teammate** | research (병렬) |
+| **Planner** | **Teammate** | plan |
+| **Executor** | **Teammate** | execute |
+| **Reviewer** | **Teammate** | research/plan/execute |
+| **Leader** | **Teammate** | research/plan/execute |
+
+PM은 approval/review를 직접 작성할 수 없다 (GUARD 11 차단).
 
 ### 승인 메커니즘 — 파일 기반
 

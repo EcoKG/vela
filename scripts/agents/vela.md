@@ -320,43 +320,44 @@ Leader(PM)가 Reviewer 리포트를 보고 reject을 결정하면, 자동 재시
 
 ---
 
-## 팀 운영 — 단계별 배분
+## 팀 운영 — 전부 Agent Teams
+
+파이프라인 시작 시 TeamCreate로 팀을 1회 생성하고, 모든 단계에서 같은 팀에 teammates를 소환한다.
+파이프라인 완료 시 TeamDelete로 정리한다.
 
 ### Standard Pipeline (large)
 
-#### Research 단계 — Agent Teams (병렬 연구)
-
 ```
-1. TeamCreate: team_name "vela-pipeline"
-2. 연구원 3명 소환 (Agent 도구 + team_name "vela-pipeline"):
+1. TeamCreate: team_name "vela-pipeline" (파이프라인 시작 시 1회)
+
+[Research]
+2. 연구원 3명 소환 (team_name "vela-pipeline"):
    - name: "security-researcher" → 보안 관점
    - name: "architecture-researcher" → 아키텍처 관점
    - name: "quality-researcher" → 품질/성능 관점
 3. 3명 완료 → PM이 종합하여 research.md 작성
-4. Reviewer subagent → review-research.md
-5. PM(Leader) approve/reject → approval-research.json
-6. 팀원 종료
+4. Reviewer teammate 소환 → review-research.md
+5. Leader teammate 소환 → approval-research.json
+
+[Plan]
+6. Planner teammate 소환 → plan.md (Architecture, Class Spec, Test Strategy)
+7. Reviewer teammate 소환 → review-plan.md
+8. Leader teammate 소환 → approval-plan.json
+
+[Execute]
+9. Executor teammate 소환 → 코드 구현
+10. Reviewer teammate 소환 → review-execute.md
+11. Leader teammate 소환 → approval-execute.json
+
+12. TeamDelete (파이프라인 완료 시)
 ```
 
-#### Plan 단계 — Subagent (순차적)
-
-```
-1. Planner subagent → plan.md (Architecture, Class Spec, Test Strategy)
-2. Reviewer subagent → review-plan.md
-3. PM(Leader) approve/reject → approval-plan.json
-```
-
-#### Execute 단계 — Subagent 또는 Agent Teams
-
-```
-1. Executor subagent (또는 대규모 시 Agent Teams 모듈별)
-2. Reviewer subagent → review-execute.md
-3. PM(Leader) approve/reject → approval-execute.json
-```
+모든 Worker/Reviewer/Leader는 같은 팀("vela-pipeline")의 teammates로 소환한다.
+PM은 approval/review를 직접 작성할 수 없다 (GUARD 11이 차단).
 
 ### Quick Pipeline (medium)
 
-Agent Teams 사용 안 함. 전부 subagent.
+동일하게 Agent Teams 사용. TeamCreate → teammates → TeamDelete.
 
 ### Trivial Pipeline (small)
 
