@@ -45,7 +45,8 @@ const commands = {
   'sub-transition': cmdSubTransition,
   branch: cmdBranch,
   commit: cmdCommit,
-  cancel: cmdCancel
+  cancel: cmdCancel,
+  history: cmdHistory
 };
 
 if (!command || !commands[command]) {
@@ -608,6 +609,53 @@ function cmdCancel() {
     command: 'cancel',
     recovery: recovery,
     message: 'Pipeline cancelled.'
+  });
+}
+
+function cmdHistory() {
+  if (!fs.existsSync(ARTIFACTS_DIR)) {
+    return output({ ok: true, command: 'history', pipelines: [], message: 'No pipeline history.' });
+  }
+
+  const pipelines = [];
+  try {
+    const dateDirs = fs.readdirSync(ARTIFACTS_DIR)
+      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
+
+    for (const dateDir of dateDirs) {
+      const datePath = path.join(ARTIFACTS_DIR, dateDir);
+      const slugDirs = fs.readdirSync(datePath).filter(d => {
+        try { return fs.statSync(path.join(datePath, d)).isDirectory(); }
+        catch { return false; }
+      }).sort().reverse();
+
+      for (const slugDir of slugDirs) {
+        const statePath = path.join(datePath, slugDir, 'pipeline-state.json');
+        if (!fs.existsSync(statePath)) continue;
+        try {
+          const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+          pipelines.push({
+            date: dateDir,
+            slug: slugDir,
+            status: state.status,
+            type: state.pipeline_type,
+            request: (state.request || '').substring(0, 60),
+            step: state.current_step,
+            steps_completed: (state.completed_steps || []).length,
+            steps_total: (state.steps || []).length,
+            created: state.created_at,
+            updated: state.updated_at
+          });
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+
+  output({
+    ok: true,
+    command: 'history',
+    count: pipelines.length,
+    pipelines: pipelines
   });
 }
 

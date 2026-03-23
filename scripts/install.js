@@ -123,6 +123,12 @@ const VELA_HOOKS = [
     hookId: 'vela-compact',
     script: 'vela-compact.js',
     description: '✦ Restoring navigation state...'
+  },
+  {
+    matcher: 'SubagentStart',
+    hookId: 'vela-subagent-start',
+    script: 'vela-subagent-start.js',
+    description: '⛵ Briefing crew member...'
   }
 ];
 
@@ -515,6 +521,7 @@ function validate() {
     { src: 'scripts/hooks/vela-stop.js', dst: 'hooks/vela-stop.js' },
     { src: 'scripts/hooks/vela-session-start.js', dst: 'hooks/vela-session-start.js' },
     { src: 'scripts/hooks/vela-compact.js', dst: 'hooks/vela-compact.js' },
+    { src: 'scripts/hooks/vela-subagent-start.js', dst: 'hooks/vela-subagent-start.js' },
     { src: 'scripts/hooks/shared/constants.js', dst: 'hooks/shared/constants.js' },
     { src: 'scripts/hooks/shared/pipeline.js', dst: 'hooks/shared/pipeline.js' },
     { src: 'scripts/cli/vela-engine.js', dst: 'cli/vela-engine.js' },
