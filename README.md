@@ -66,6 +66,10 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 │  ⛵ Gate Keeper   🌟 Gate Guard   🧭 Orchestrator        │
 │  R/W 모드 강제    파이프라인 순서   매 턴 상태 주입         │
 │                                                           │
+│  ⛵ PROMPT OPTIMIZER ────────────────────────────        │
+│  모든 모드에서 최우선 실행. 불충분한 프롬프트 자동 감지     │
+│  AskUserQuestion으로 대상/범위/목적/맥락 보완 유도          │
+│                                                           │
 │  🧭 PIPELINE ────────────────────────────────────        │
 │  init → research → plan → plan-check → checkpoint        │
 │       → branch → execute → verify → commit → finalize    │
@@ -97,6 +101,24 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 - **Agent Teams** — 3명 병렬 (보안/아키텍처/품질)
 
 분석 후 수정 필요 시 → 파이프라인 시작 / 추가 조사 / 완료 선택
+
+---
+
+## 프롬프트 최적화
+
+모든 모드에서 **사용자 요청이 들어오면 프롬프트를 먼저 분석**한다.
+대상/범위/목적/기술적 맥락이 부족하면 AskUserQuestion으로 보완을 유도.
+
+```
+사용자: "코드 수정해줘"
+
+⛵ Vela Prompt Optimizer:
+  → 대상 불명확 → "어떤 파일/모듈을 수정할까요?"
+  → 범위 불명확 → "전체? 특정 함수?"
+  → 보완 후 명확한 프롬프트로 파이프라인 진행
+```
+
+**충분한 프롬프트는 바로 진행** — 최적화를 강제하지 않음.
 
 ---
 
