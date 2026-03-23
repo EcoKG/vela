@@ -59,7 +59,9 @@ async function main() {
       process.stderr.write(
         `🌟 [Vela] ✦ BLOCKED: No active pipeline (Explore mode).\n` +
         `  Tool: ${tool_name}\n` +
-        `  To modify code: node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>`
+        `  ──────────────────────────────────\n` +
+        `  🧭 해결: /vela start 로 파이프라인을 시작하세요.\n` +
+        `  또는: node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>`
       );
       process.exit(2);
     }

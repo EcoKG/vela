@@ -99,10 +99,34 @@ const VELA_HOOKS = [
     hookId: 'vela-tracker',
     script: 'vela-tracker.js',
     description: '🔭 Logging voyage data...'
+  },
+  {
+    matcher: 'Stop',
+    hookId: 'vela-stop',
+    script: 'vela-stop.js',
+    description: '⛵ Checking active voyage...'
+  },
+  {
+    matcher: 'SessionStart',
+    hookId: 'vela-session-start',
+    script: 'vela-session-start.js',
+    description: '⛵ Scanning for interrupted voyages...'
+  },
+  {
+    matcher: 'PreCompact',
+    hookId: 'vela-compact',
+    script: 'vela-compact.js',
+    description: '✦ Preserving navigation state...'
+  },
+  {
+    matcher: 'PostCompact',
+    hookId: 'vela-compact',
+    script: 'vela-compact.js',
+    description: '✦ Restoring navigation state...'
   }
 ];
 
-const command = process.argv[2] || 'install';
+const command = (process.argv[2] && !process.argv[2].startsWith('-')) ? process.argv[2] : 'install';
 
 switch (command) {
   case 'install': install(); break;
@@ -284,23 +308,43 @@ This project uses Vela for development governance.
 
   const permissionCount = VELA_PERMISSIONS.deny.length + VELA_PERMISSIONS.allow.length;
 
-  console.log(JSON.stringify({
-    ok: errors.length === 0,
-    command: 'install',
-    validation: validation,
-    installed: installed,
-    agent: 'vela',
-    claude_md: !fs.existsSync(claudeMdPath) ? 'created' : 'exists',
-    permissions: {
-      deny_rules: VELA_PERMISSIONS.deny.length,
-      allow_rules: VELA_PERMISSIONS.allow.length
-    },
-    errors: errors,
-    settings_path: SETTINGS_PATH,
-    message: errors.length === 0
-      ? `Successfully installed ${installed.length} Vela hooks + ${permissionCount} permission rules + vela agent.`
-      : `Installed ${installed.length} hooks with ${errors.length} errors.`
-  }, null, 2));
+  // Human-readable output (JSON with --json flag)
+  if (process.argv.includes('--json')) {
+    console.log(JSON.stringify({
+      ok: errors.length === 0, command: 'install', validation, installed,
+      agent: 'vela', permissions: { deny: VELA_PERMISSIONS.deny.length, allow: VELA_PERMISSIONS.allow.length },
+      errors, settings_path: SETTINGS_PATH
+    }, null, 2));
+  } else {
+    console.log('');
+    console.log('✦ Vela Engine — Installation Complete ✦');
+    console.log('');
+    console.log(`  ⛵ Hooks: ${installed.length} registered`);
+    installed.forEach(h => console.log(`     ✓ ${h}`));
+    console.log(`  🌟 Permissions: ${VELA_PERMISSIONS.deny.length} deny + ${VELA_PERMISSIONS.allow.length} allow`);
+    console.log(`  🧭 Agent: vela`);
+    console.log(`  🔭 StatusLine: active`);
+    console.log(`  ✦ Spinner: ${12} nautical verbs`);
+    console.log(`  ⛵ CLAUDE.md: ${fs.existsSync(claudeMdPath) ? 'exists' : 'created'}`);
+    if (validation.fixed.length > 0) {
+      console.log('');
+      console.log('  🔧 Auto-repaired:');
+      validation.fixed.forEach(f => console.log(`     ✓ ${f}`));
+    }
+    if (validation.warnings.length > 0) {
+      console.log('');
+      console.log('  ⚠ Warnings:');
+      validation.warnings.forEach(w => console.log(`     ! ${w}`));
+    }
+    if (errors.length > 0) {
+      console.log('');
+      console.log('  ❌ Errors:');
+      errors.forEach(e => console.log(`     ✗ ${e}`));
+    }
+    console.log('');
+    console.log('✦─────────────────────✦');
+    console.log('');
+  }
 }
 
 function verify() {
@@ -468,6 +512,9 @@ function validate() {
     { src: 'scripts/hooks/vela-gate-guard.js', dst: 'hooks/vela-gate-guard.js' },
     { src: 'scripts/hooks/vela-orchestrator.js', dst: 'hooks/vela-orchestrator.js' },
     { src: 'scripts/hooks/vela-tracker.js', dst: 'hooks/vela-tracker.js' },
+    { src: 'scripts/hooks/vela-stop.js', dst: 'hooks/vela-stop.js' },
+    { src: 'scripts/hooks/vela-session-start.js', dst: 'hooks/vela-session-start.js' },
+    { src: 'scripts/hooks/vela-compact.js', dst: 'hooks/vela-compact.js' },
     { src: 'scripts/hooks/shared/constants.js', dst: 'hooks/shared/constants.js' },
     { src: 'scripts/hooks/shared/pipeline.js', dst: 'hooks/shared/pipeline.js' },
     { src: 'scripts/cli/vela-engine.js', dst: 'cli/vela-engine.js' },

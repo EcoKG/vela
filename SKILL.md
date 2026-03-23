@@ -12,6 +12,18 @@ Vela는 Claude Code를 완전히 감싸는 샌드박스 엔진이다.
 `$ARGUMENTS`를 확인한다:
 - `$ARGUMENTS`가 `init` → `/vela:init` 절차 실행
 - `$ARGUMENTS`가 `start` 또는 `start <작업설명>` → `/vela:start` 절차 실행
+- `$ARGUMENTS`가 `status` → 현재 파이프라인 상태를 보여준다:
+  ```bash
+  node .vela/cli/vela-engine.js state
+  ```
+  결과를 예쁘게 포맷하여 표시:
+  ```
+  ⛵ Vela Pipeline Status
+  🧭 standard │ Step: execute (7/10) │ Task: 인증 시스템 추가
+  ✦ Branch: vela/auth-system-1358
+  🌟 Completed: init → research → plan → plan-check → checkpoint → branch
+  ```
+  파이프라인이 없으면: `⛵ Vela — Explore 모드. 활성 파이프라인 없음.`
 - `$ARGUMENTS`가 비어있음 → AskUserQuestion으로 선택:
 
 ```json
