@@ -202,27 +202,42 @@ PM은 approval/review를 직접 작성할 수 없다 (GUARD 11 차단).
 
 ### ⛵ Gate Keeper (PreToolUse)
 
-| 게이트 | 규칙 |
-|--------|------|
-| Bash 차단 | Vela CLI 외 차단 |
-| 모드 강제 | 읽기전용에서 Write/Edit 차단 |
-| pipeline-state.json 보호 | 직접 수정 차단 |
-| 민감파일 보호 | .env, credentials.json 차단 |
-| 시크릿 감지 | 15개 패턴 차단 |
+| 게이트 | 코드 | 규칙 |
+|--------|------|------|
+| Bash 차단 | VK-01, VK-02 | Vela CLI 외 차단 |
+| 모드 강제 | VK-03, VK-04 | 읽기전용에서 Write/Edit 차단 |
+| 민감파일 보호 | VK-05 | .env, credentials.json 차단 |
+| 시크릿 감지 | VK-06 | 15개 패턴 차단 |
 
 ### 🌟 Gate Guard (PreToolUse)
 
-| 가드 | 규칙 |
-|------|------|
-| GUARD 0 | 파이프라인 중 TaskCreate/TaskUpdate 차단 |
-| GUARD 0.5 | 비-research에서 5회 이상 Read 경고 |
-| GUARD 1 | research.md 없이 plan.md 불가 |
-| GUARD 2 | execute 전 소스코드 수정 불가 + pipeline-state.json 보호 |
-| GUARD 3 | 빌드/테스트 실패 시 commit 불가 |
-| GUARD 4 | verification.md 없이 report.md 불가 |
-| GUARD 5 | pipeline-state.json 직접 수정 불가 |
-| GUARD 6~9 | 리비전 한도, git commit/push 단계 제한, 보호 브랜치 경고 |
-| **GUARD 11** | **PM이 approval-*.json / review-*.md 직접 작성 차단** — Leader/Reviewer subagent만 가능 |
+| 가드 | 코드 | 규칙 |
+|------|------|------|
+| GUARD 0 | VG-00 | 파이프라인 중 TaskCreate/TaskUpdate 차단 |
+| GUARD 0.5 | — | 비-research에서 5회 이상 Read 경고 |
+| GUARD 1 | VG-01 | research.md 없이 plan.md 불가 |
+| GUARD 2 | VG-02 | execute 전 소스코드 수정 불가 + pipeline-state.json 보호 |
+| GUARD 3 | VG-03 | 빌드/테스트 실패 시 commit 불가 |
+| GUARD 4 | VG-04 | verification.md 없이 report.md 불가 |
+| GUARD 5 | VG-05 | pipeline-state.json 직접 수정 불가 |
+| GUARD 6 | VG-06 | 리비전 한도 초과 차단 |
+| GUARD 7 | VG-07 | execute/commit/finalize에서만 git commit 허용 |
+| GUARD 8 | VG-08 | verify 완료 전 git push 차단 |
+| GUARD 9 | — | 보호 브랜치 직접 커밋 경고 |
+| **GUARD 11** | **VG-11** | **PM이 approval/review 직접 작성 차단** — Subagent만 가능 |
+
+### 차단 시 자동 복구 (Block Recovery)
+
+훅이 `BLOCKED [코드]` 메시지를 반환하면, Claude는 차단 코드를 읽고 `vela.md`의 복구 테이블에 따라 즉시 올바른 행동으로 전환한다. 같은 행동을 재시도하지 않는다.
+
+```
+Claude: src/auth.js 수정 시도
+  ↓
+Hook: 🌟 [Vela] ✦ BLOCKED [VG-02]: Source code modification before execute step.
+      Recovery: Complete steps first: research → plan → execute
+  ↓
+Claude: [VG-02] → 복구 테이블 참조 → vela-engine transition 실행
+```
 
 ### Permission Deny (절대 차단)
 
