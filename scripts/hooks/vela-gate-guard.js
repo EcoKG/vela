@@ -57,11 +57,10 @@ async function main() {
         process.exit(0);
       }
       process.stderr.write(
-        `🌟 [Vela] ✦ BLOCKED: No active pipeline (Explore mode).\n` +
+        `🌟 [Vela] ✦ BLOCKED [VG-EXPLORE]: No active pipeline (Explore mode).\n` +
         `  Tool: ${tool_name}\n` +
-        `  ──────────────────────────────────\n` +
-        `  🧭 해결: /vela start 로 파이프라인을 시작하세요.\n` +
-        `  또는: node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>`
+        `  Recovery: /vela start 로 파이프라인을 시작하거나\n` +
+        `  node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>`
       );
       process.exit(2);
     }
@@ -76,10 +75,9 @@ async function main() {
   const BLOCKED_TASK_TOOLS = new Set(['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet']);
   if (BLOCKED_TASK_TOOLS.has(tool_name)) {
     process.stderr.write(
-      `🌟 [Vela] ✦ BLOCKED: Claude task tools disabled during Vela pipeline.\n` +
-      `  Use Vela pipeline steps instead.\n` +
-      `  Current step: ${state.current_step}\n` +
-      `  Advance with: node .vela/cli/vela-engine.js transition`
+      `🌟 [Vela] ✦ BLOCKED [VG-00]: Claude task tools disabled during Vela pipeline.\n` +
+      `  Tool: ${tool_name} | Step: ${state.current_step}\n` +
+      `  Recovery: Use Vela pipeline steps. Advance: node .vela/cli/vela-engine.js transition`
     );
     process.exit(2);
   }
@@ -115,10 +113,9 @@ async function main() {
       const researchPath = path.join(artifactDir, 'research.md');
       if (!fs.existsSync(researchPath)) {
         process.stderr.write(
-          `🌟 [Vela] ✦ BLOCKED: Cannot create plan without research.\n` +
-          `  research.md must exist before plan.md.\n` +
-          `  Current step: ${currentStep}\n` +
-          `  Complete the research step first.`
+          `🌟 [Vela] ✦ BLOCKED [VG-01]: Cannot create plan without research.\n` +
+          `  Step: ${currentStep}\n` +
+          `  Recovery: Complete research step first. research.md must exist before plan.md.`
         );
         process.exit(2);
       }
@@ -136,9 +133,8 @@ async function main() {
       // pipeline-state.json — engine-managed only
       if (protectedFile === 'pipeline-state.json') {
         process.stderr.write(
-          `🌟 [Vela] ✦ BLOCKED: Cannot directly modify pipeline-state.json.\n` +
-          `  Pipeline state is managed exclusively by the Vela engine.\n` +
-          `  Use: node .vela/cli/vela-engine.js transition`
+          `🌟 [Vela] ✦ BLOCKED [VG-05]: Cannot directly modify pipeline-state.json.\n` +
+          `  Recovery: Use engine CLI: node .vela/cli/vela-engine.js transition`
         );
         process.exit(2);
       }
@@ -154,11 +150,10 @@ async function main() {
             const { session_id: inputSessionId } = input;
             if (pmData.session_id && inputSessionId === pmData.session_id) {
               process.stderr.write(
-                `🌟 [Vela] ✦ BLOCKED: PM cannot directly write ${protectedFile}.\n` +
-                `  approval-*.json → Leader subagent만 작성 가능\n` +
-                `  review-*.md → Reviewer subagent만 작성 가능\n` +
-                `  ──────────────────────────────────\n` +
-                `  🧭 해결: Agent 도구로 Reviewer/Leader subagent를 소환하세요.`
+                `🌟 [Vela] ✦ BLOCKED [VG-11]: PM cannot directly write ${protectedFile}.\n` +
+                `  approval-*.json → Leader subagent only\n` +
+                `  review-*.md → Reviewer subagent only\n` +
+                `  Recovery: Agent 도구로 Reviewer/Leader subagent를 소환하세요.`
               );
               process.exit(2);
             }
@@ -186,11 +181,9 @@ async function main() {
     const executeReached = isStepReached(state, pipelineDef, 'execute');
     if (!executeReached) {
       process.stderr.write(
-        `🌟 [Vela] ✦ BLOCKED: Source code modification before execute step.\n` +
-        `  File: ${targetFile}\n` +
-        `  Current step: ${currentStep}\n` +
-        `  Source code can only be modified during the execute step.\n` +
-        `  Complete the pipeline steps: ${getStepsUntil(state, pipelineDef, 'execute').join(' → ')}`
+        `🌟 [Vela] ✦ BLOCKED [VG-02]: Source code modification before execute step.\n` +
+        `  File: ${targetFile} | Step: ${currentStep}\n` +
+        `  Recovery: Complete steps first: ${getStepsUntil(state, pipelineDef, 'execute').join(' → ')}`
       );
       process.exit(2);
     }
@@ -215,9 +208,8 @@ async function main() {
           );
           if (recentFail) {
             process.stderr.write(
-              `🌟 [Vela] ✦ BLOCKED: Cannot commit with failed build/tests.\n` +
-              `  Recent build or test failure detected.\n` +
-              `  Fix the issues and re-run tests before committing.`
+              `🌟 [Vela] ✦ BLOCKED [VG-03]: Cannot commit with failed build/tests.\n` +
+              `  Recovery: Fix the failing tests/build, re-run, then commit.`
             );
             process.exit(2);
           }
@@ -237,9 +229,8 @@ async function main() {
       const verificationPath = path.join(artifactDir, 'verification.md');
       if (!fs.existsSync(verificationPath)) {
         process.stderr.write(
-          `🌟 [Vela] ✦ BLOCKED: Cannot create report without verification.\n` +
-          `  verification.md must exist before report.md.\n` +
-          `  Complete the verification step first.`
+          `🌟 [Vela] ✦ BLOCKED [VG-04]: Cannot create report without verification.\n` +
+          `  Recovery: Complete verification step first. verification.md must exist before report.md.`
         );
         process.exit(2);
       }
@@ -253,9 +244,8 @@ async function main() {
 
     if (fileName === 'pipeline-state.json') {
       process.stderr.write(
-        `🌟 [Vela] ✦ BLOCKED: Cannot directly modify pipeline-state.json.\n` +
-        `  Pipeline state is managed exclusively by the Vela engine.\n` +
-        `  Use the engine CLI: node .vela/cli/vela-engine.js transition`
+        `🌟 [Vela] ✦ BLOCKED [VG-05]: Cannot directly modify pipeline-state.json.\n` +
+        `  Recovery: Use engine CLI: node .vela/cli/vela-engine.js transition`
       );
       process.exit(2);
     }
@@ -268,10 +258,9 @@ async function main() {
       const currentRevisions = state.revisions[currentStep] || 0;
       if (currentRevisions >= stepDef.max_revisions) {
         process.stderr.write(
-          `🌟 [Vela] ✦ BLOCKED: Revision limit reached for step "${currentStep}".\n` +
-          `  Max revisions: ${stepDef.max_revisions}\n` +
-          `  Current revisions: ${currentRevisions}\n` +
-          `  Transition to the next step or request user approval to continue.`
+          `🌟 [Vela] ✦ BLOCKED [VG-06]: Revision limit reached for step "${currentStep}".\n` +
+          `  Max: ${stepDef.max_revisions} | Current: ${currentRevisions}\n` +
+          `  Recovery: Transition to next step or request user approval to continue.`
         );
         process.exit(2);
       }
@@ -285,9 +274,9 @@ async function main() {
       const allowedSteps = ['execute', 'commit', 'finalize'];
       if (!allowedSteps.includes(currentStep)) {
         process.stderr.write(
-          `🌟 [Vela] ✦ BLOCKED: Git commit only allowed during execute/commit/finalize steps.\n` +
-          `  Current step: ${currentStep}\n` +
-          `  Use the Vela engine: node .vela/cli/vela-engine.js commit`
+          `🌟 [Vela] ✦ BLOCKED [VG-07]: Git commit only allowed during execute/commit/finalize steps.\n` +
+          `  Step: ${currentStep}\n` +
+          `  Recovery: Use engine: node .vela/cli/vela-engine.js commit`
         );
         process.exit(2);
       }
@@ -301,9 +290,9 @@ async function main() {
       const verifyReached = isStepReached(state, pipelineDef, 'verify');
       if (!verifyReached) {
         process.stderr.write(
-          `🌟 [Vela] ✦ BLOCKED: Git push only allowed after verification step.\n` +
-          `  Current step: ${currentStep}\n` +
-          `  Complete verification before pushing.`
+          `🌟 [Vela] ✦ BLOCKED [VG-08]: Git push only allowed after verification step.\n` +
+          `  Step: ${currentStep}\n` +
+          `  Recovery: Complete verification step first, then push.`
         );
         process.exit(2);
       }

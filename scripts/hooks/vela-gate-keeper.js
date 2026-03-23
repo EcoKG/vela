@@ -78,20 +78,20 @@ async function main() {
 
     if (hasWritePattern && currentMode === 'read') {
       process.stderr.write(
-        `⛵ [Vela] ✦ BLOCKED: Bash write command in read-only mode.\n` +
+        `⛵ [Vela] ✦ BLOCKED [VK-01]: Bash write command in read-only mode.\n` +
         `  Mode: ${currentMode}\n` +
         `  Command: ${cmd.substring(0, 100)}\n` +
-        `  Use Vela CLI tools instead: .vela/cli/vela-write`
+        `  Recovery: Use Vela CLI tools instead: .vela/cli/vela-write`
       );
       process.exit(2);
     }
 
     // Block all other bash commands
     process.stderr.write(
-      `⛵ [Vela] ✦ BLOCKED: Bash is restricted in Vela sandbox.\n` +
+      `⛵ [Vela] ✦ BLOCKED [VK-02]: Bash is restricted in Vela sandbox.\n` +
       `  Command: ${cmd.substring(0, 100)}\n` +
-      `  Use Vela CLI tools instead (.vela/cli/vela-read, .vela/cli/vela-write)\n` +
-      `  Or use Claude Code's built-in Read/Write/Edit/Glob/Grep tools.`
+      `  Recovery: Use Vela CLI tools (.vela/cli/vela-read, .vela/cli/vela-write)\n` +
+      `  or Claude Code's built-in Read/Write/Edit/Glob/Grep tools.`
     );
     process.exit(2);
   }
@@ -105,8 +105,8 @@ async function main() {
     if (targetFile.includes('.vela/')) {
       if (path.basename(targetFile) === 'pipeline-state.json') {
         process.stderr.write(
-          `⛵ [Vela] ✦ BLOCKED: Cannot directly modify pipeline-state.json.\n` +
-          `  Pipeline state is managed exclusively by the Vela engine.`
+          `⛵ [Vela] ✦ BLOCKED [VK-03]: Cannot directly modify pipeline-state.json.\n` +
+          `  Recovery: Use engine CLI: node .vela/cli/vela-engine.js transition`
         );
         process.exit(2);
       }
@@ -114,11 +114,10 @@ async function main() {
     }
 
     process.stderr.write(
-      `⛵ [Vela] ✦ BLOCKED: Write operation in read-only mode.\n` +
+      `⛵ [Vela] ✦ BLOCKED [VK-04]: Write operation in read-only mode.\n` +
       `  Tool: ${tool_name}\n` +
       `  Target: ${targetFile}\n` +
-      `  Current step requires read-only mode.\n` +
-      `  Advance the pipeline to a write-enabled step first.`
+      `  Recovery: Advance pipeline to write-enabled step: node .vela/cli/vela-engine.js transition`
     );
     process.exit(2);
   }
@@ -138,10 +137,9 @@ async function main() {
       }
 
       process.stderr.write(
-        `⛵ [Vela] ✦ BLOCKED: Cannot write to sensitive file.\n` +
+        `⛵ [Vela] ✦ BLOCKED [VK-05]: Cannot write to sensitive file.\n` +
         `  File: ${targetFile}\n` +
-        `  Protected files: ${SENSITIVE_FILES.join(', ')}\n` +
-        `  Use .env.example or .env.template instead.`
+        `  Recovery: Use .env.example or .env.template instead of ${SENSITIVE_FILES.join(', ')}`
       );
       process.exit(2);
     }
@@ -153,10 +151,10 @@ async function main() {
     for (const pattern of SECRET_PATTERNS) {
       if (pattern.test(content)) {
         process.stderr.write(
-          `⛵ [Vela] ✦ BLOCKED: Potential secret/credential detected in write.\n` +
+          `⛵ [Vela] ✦ BLOCKED [VK-06]: Potential secret/credential detected in write.\n` +
           `  Tool: ${tool_name}\n` +
-          `  Pattern matched: ${pattern.source.substring(0, 40)}...\n` +
-          `  Never embed secrets in source code. Use environment variables.`
+          `  Pattern: ${pattern.source.substring(0, 40)}...\n` +
+          `  Recovery: Remove secret from code. Use environment variables instead.`
         );
         process.exit(2);
       }

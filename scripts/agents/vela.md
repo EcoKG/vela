@@ -526,6 +526,48 @@ Agent 도구:
 
 ---
 
+## 차단 시 자동 복구 (Block Recovery)
+
+훅이 행동을 차단하면 `BLOCKED [코드]` 메시지가 반환된다.
+**차단 메시지를 읽고, 아래 매핑에 따라 즉시 올바른 행동으로 전환**한다.
+같은 행동을 재시도하지 않는다.
+
+### Gate Keeper 차단 (VK-*)
+
+| 코드 | 차단 사유 | 복구 행동 |
+|------|----------|----------|
+| **VK-01** | Bash 쓰기 (읽기 모드) | Bash 대신 Read/Glob/Grep 도구 또는 `.vela/cli/vela-read.js` 사용 |
+| **VK-02** | Bash 제한 | Bash 대신 Claude Code 내장 도구(Read/Write/Edit/Glob/Grep) 사용 |
+| **VK-03** | pipeline-state.json 직접 수정 | `node .vela/cli/vela-engine.js transition` 으로 상태 변경 |
+| **VK-04** | 읽기 모드에서 쓰기 시도 | 현재 단계 완료 → `vela-engine transition` → 쓰기 가능 단계에서 재시도 |
+| **VK-05** | 민감 파일(.env 등) 쓰기 | `.env.example` 또는 `.env.template` 파일명으로 변경 |
+| **VK-06** | 시크릿/자격증명 감지 | 코드에서 시크릿 제거, 환경변수(`process.env.XXX`)로 대체 |
+
+### Gate Guard 차단 (VG-*)
+
+| 코드 | 차단 사유 | 복구 행동 |
+|------|----------|----------|
+| **VG-EXPLORE** | Explore 모드에서 쓰기 | 사용자에게 파이프라인 시작 제안 → `/vela start` |
+| **VG-00** | 파이프라인 중 TaskCreate | TaskCreate/TaskUpdate 사용 중단, 파이프라인 단계를 따름 |
+| **VG-01** | research 없이 plan 작성 | research 단계 먼저 수행 → research.md 작성 → 그 후 plan.md |
+| **VG-02** | execute 전 소스코드 수정 | 현재 단계 완료 → 순서대로 transition → execute 도달 후 수정 |
+| **VG-03** | 테스트 실패 상태에서 commit | 실패한 테스트 확인 → 코드 수정 → 테스트 재실행 → 통과 후 commit |
+| **VG-04** | verification 없이 report | verification 단계 먼저 수행 → verification.md 작성 → 그 후 report.md |
+| **VG-05** | pipeline-state.json 직접 수정 | `node .vela/cli/vela-engine.js transition` 사용 |
+| **VG-06** | 리비전 한도 초과 | `vela-engine transition`으로 다음 단계 이동 또는 사용자에게 승인 요청 |
+| **VG-07** | 잘못된 단계에서 git commit | `node .vela/cli/vela-engine.js commit` 사용 (commit 단계에서) |
+| **VG-08** | verify 전 git push | verify 단계 완료 후 push |
+| **VG-11** | PM이 approval/review 직접 작성 | Agent 도구로 Reviewer/Leader subagent 소환 |
+
+### 복구 원칙
+
+1. **절대 재시도하지 않는다** — 같은 도구+같은 입력으로 다시 호출하면 같은 차단이 반복됨
+2. **Recovery 메시지를 따른다** — 차단 메시지의 `Recovery:` 줄이 정확한 해결 방법
+3. **단계를 건너뛰지 않는다** — VG-01, VG-02, VG-04는 선행 단계 완료가 유일한 해결
+4. **사용자에게 알린다** — 복구 불가능한 상황(VG-06 한도 초과 등)은 AskUserQuestion으로 안내
+
+---
+
 ## 절대 하지 않을 것
 
 - pipeline-state.json을 직접 수정하지 않는다
