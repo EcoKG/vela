@@ -73,10 +73,11 @@ init이 안 되어 있으면 자동으로 init을 먼저 수행한 후 파이프
    - ⛵ **small**: trivial (init → execute → commit → finalize) — 단일 파일, 10줄 이하
    - 🧭 **medium**: quick (init → plan → execute → verify → commit → finalize) — 3파일 이하
    - ✦ **large**: standard (full 10-step with research, plan, team review) — 대규모 작업
+   - 🔄 **ralph**: ralph (테스트 통과까지 자동 반복) — 버그 수정, TDD
 
 4. **파이프라인 시작**
    ```bash
-   node .vela/cli/vela-engine.js init "작업 설명" --scale <small|medium|large> --type <code|code-bug|code-refactor|docs>
+   node .vela/cli/vela-engine.js init "작업 설명" --scale <small|medium|large|ralph> --type <code|code-bug|code-refactor|docs>
    ```
 
 5. **파이프라인 진행**

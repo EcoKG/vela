@@ -129,6 +129,12 @@ const VELA_HOOKS = [
     hookId: 'vela-subagent-start',
     script: 'vela-subagent-start.js',
     description: '⛵ Briefing crew member...'
+  },
+  {
+    matcher: 'TaskCompleted',
+    hookId: 'vela-task-completed',
+    script: 'vela-task-completed.js',
+    description: '✦ Verifying voyage milestone...'
   }
 ];
 
@@ -522,6 +528,7 @@ function validate() {
     { src: 'scripts/hooks/vela-session-start.js', dst: 'hooks/vela-session-start.js' },
     { src: 'scripts/hooks/vela-compact.js', dst: 'hooks/vela-compact.js' },
     { src: 'scripts/hooks/vela-subagent-start.js', dst: 'hooks/vela-subagent-start.js' },
+    { src: 'scripts/hooks/vela-task-completed.js', dst: 'hooks/vela-task-completed.js' },
     { src: 'scripts/hooks/shared/constants.js', dst: 'hooks/shared/constants.js' },
     { src: 'scripts/hooks/shared/pipeline.js', dst: 'hooks/shared/pipeline.js' },
     { src: 'scripts/cli/vela-engine.js', dst: 'cli/vela-engine.js' },

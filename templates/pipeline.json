@@ -162,6 +162,18 @@
         "no_api_changes": true
       }
     },
+    "ralph": {
+      "description": "Auto-retry until tests pass. Iterate execute→verify until success.",
+      "inherits": "standard",
+      "steps_only": ["init", "execute", "verify", "commit", "finalize"],
+      "overrides": {
+        "execute": {
+          "max_revisions": 10
+        }
+      },
+      "ralph_mode": true,
+      "max_iterations": 10
+    },
     "trivial": {
       "description": "Minimal pipeline for single-line fixes",
       "inherits": "standard",

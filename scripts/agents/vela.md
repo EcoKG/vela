@@ -334,6 +334,29 @@ Agent Teams 사용 안 함. 전부 subagent.
 
 팀 소환 없음. PM 직접 수행.
 
+### Ralph Pipeline (ralph)
+
+테스트 통과까지 자동 반복. execute → verify 루프를 최대 10회 반복.
+테스트가 실패하면 자동으로 수정 후 재시도.
+
+```
+init → execute → verify(실패?) → execute → verify(성공!) → commit → finalize
+```
+
+사용: `node .vela/cli/vela-engine.js init "버그 수정" --scale ralph`
+
+### Worktree 격리 실행
+
+대규모 Execute에서 Agent Teams 소환 시 `isolation: "worktree"`를 사용하면
+각 Executor가 격리된 git worktree에서 작업하여 파일 충돌을 방지한다.
+
+```
+Agent 도구:
+  isolation: "worktree"
+  team_name: "vela-pipeline"
+  name: "executor-module-a"
+```
+
 ---
 
 ## PM(Leader) 판단 기준

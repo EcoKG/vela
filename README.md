@@ -107,8 +107,12 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 | **standard** | init → research → plan → plan-check → checkpoint → branch → execute → verify → commit → finalize | `--scale large` |
 | **quick** | init → plan → execute → verify → commit → finalize | `--scale medium` |
 | **trivial** | init → execute → commit → finalize | `--scale small` |
+| **ralph** | init → execute ↔ verify (반복) → commit → finalize | `--scale ralph` |
 
 `--scale` 필수. 미지정 시 AskUserQuestion으로 사용자에게 선택 요구.
+
+### Ralph 모드
+테스트 통과까지 execute → verify를 최대 10회 자동 반복. 버그 수정/TDD에 적합.
 
 ---
 
@@ -218,6 +222,7 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 ✦ Preserving navigation state...    (PreCompact)
 ✦ Restoring navigation state...     (PostCompact)
 ⛵ Briefing crew member...          (SubagentStart)
+✦ Verifying voyage milestone...     (TaskCompleted)
 ```
 
 ### 시작 시 메시지
@@ -262,7 +267,7 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 ```
 your-project/
 ├── .vela/
-│   ├── hooks/          ← 9 hooks (Gate Keeper, Guard, Orchestrator, Tracker, Stop, SessionStart, Compact, SubagentStart)
+│   ├── hooks/          ← 10 hooks (Gate Keeper, Guard, Orchestrator, Tracker, Stop, SessionStart, Compact, SubagentStart)
 │   ├── cli/            ← vela-engine, vela-read, vela-write
 │   ├── agents/         ← vela.md, researcher, planner, executor, reviewer, leader
 │   ├── cache/          ← TreeNode SQLite
