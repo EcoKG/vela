@@ -132,8 +132,8 @@ async function main() {
     // Skip .vela/ internal files — EXCEPT protected files
     if (targetFile.includes('.vela/')) {
       const protectedFile = path.basename(targetFile);
-      // pipeline-state.json MUST go through GUARD 5 (engine-managed only)
-      // approval-*.json MUST be written by Leader agent, not PM
+
+      // pipeline-state.json — engine-managed only
       if (protectedFile === 'pipeline-state.json') {
         process.stderr.write(
           `🌟 [Vela] ✦ BLOCKED: Cannot directly modify pipeline-state.json.\n` +
@@ -142,6 +142,30 @@ async function main() {
         );
         process.exit(2);
       }
+
+      // ─── GUARD 11: approval/review files — subagent only ───
+      // PM must NOT write these directly. Only Leader/Reviewer subagents can.
+      // Detection: PM's session_id is registered in pm-session.json by orchestrator.
+      if (protectedFile.startsWith('approval-') || protectedFile.startsWith('review-')) {
+        const pmSessionPath = path.join(velaDir, 'state', 'pm-session.json');
+        if (fs.existsSync(pmSessionPath)) {
+          try {
+            const pmData = JSON.parse(fs.readFileSync(pmSessionPath, 'utf-8'));
+            const { session_id: inputSessionId } = input;
+            if (pmData.session_id && inputSessionId === pmData.session_id) {
+              process.stderr.write(
+                `🌟 [Vela] ✦ BLOCKED: PM cannot directly write ${protectedFile}.\n` +
+                `  approval-*.json → Leader subagent만 작성 가능\n` +
+                `  review-*.md → Reviewer subagent만 작성 가능\n` +
+                `  ──────────────────────────────────\n` +
+                `  🧭 해결: Agent 도구로 Reviewer/Leader subagent를 소환하세요.`
+              );
+              process.exit(2);
+            }
+          } catch (e) {}
+        }
+      }
+
       // Allow other .vela/ writes (artifacts, cache, etc.)
       process.exit(0);
     }

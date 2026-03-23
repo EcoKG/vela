@@ -56,7 +56,7 @@ async function main() {
     output.push(`🔭 Hooks: ${hookStatus.join(' | ')}`);
     output.push('✦─────────────────────✦');
 
-    // Create session state
+    // Create session state + register PM session for GUARD 11
     try {
       const stateDir = path.dirname(sessionStatePath);
       if (!fs.existsSync(stateDir)) {
@@ -67,6 +67,13 @@ async function main() {
         started: Date.now(),
         first_prompt: true,
         tool_count: 0
+      }));
+
+      // Register PM's session_id so Gate Guard can distinguish PM from subagents
+      const pmSessionPath = path.join(velaDir, 'state', 'pm-session.json');
+      fs.writeFileSync(pmSessionPath, JSON.stringify({
+        session_id: session_id,
+        registered_at: Date.now()
       }));
     } catch (e) {
       // Non-critical
