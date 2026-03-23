@@ -41,6 +41,7 @@
 | GUARD 7 | execute/commit/finalize에서만 git commit 허용 |
 | GUARD 8 | verify 완료 전 git push 차단 |
 | GUARD 9 | 보호 브랜치 직접 커밋 경고 |
+| GUARD 11 | PM이 approval-*.json / review-*.md 직접 작성 차단 (Leader/Reviewer subagent만 가능) |
 
 ### Permission Deny 규칙 (절대 차단)
 

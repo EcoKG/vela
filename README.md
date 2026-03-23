@@ -186,6 +186,7 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 | GUARD 4 | verification.md 없이 report.md 불가 |
 | GUARD 5 | pipeline-state.json 직접 수정 불가 |
 | GUARD 6~9 | 리비전 한도, git commit/push 단계 제한, 보호 브랜치 경고 |
+| **GUARD 11** | **PM이 approval-*.json / review-*.md 직접 작성 차단** — Leader/Reviewer subagent만 가능 |
 
 ### Permission Deny (절대 차단)
 
