@@ -53,3 +53,16 @@ node .vela/install.js uninstall    # 완전 제거
 node .vela/install.js status       # 현재 상태
 node .vela/install.js --json       # JSON 출력
 ```
+
+## vela-cost (비용/메트릭)
+
+```bash
+node .vela/cli/vela-cost.js        # 파이프라인 비용 리포트
+```
+
+## vela-report (대시보드)
+
+```bash
+node .vela/cli/vela-report.js                    # JSON 리포트
+node .vela/cli/vela-report.js --html report.html # HTML 대시보드
+```

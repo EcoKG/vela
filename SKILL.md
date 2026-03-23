@@ -3,7 +3,7 @@ name: vela
 description: "⛵ Vela 샌드박스 엔진. /vela:init 으로 프로젝트에 Vela 환경을 구축하고, /vela:start 로 바로 파이프라인을 시작한다 (init이 안 되어 있으면 자동으로 init 먼저 수행). Claude Code의 모든 행위를 파이프라인 기반으로 통제하는 샌드박스 시스템. 사용자가 프로젝트 환경 구축, 개발 파이프라인 설정, 코드 수정, 리팩토링, 기능 추가 등을 요청할 때 이 스킬을 사용해야 한다. Vela, 벨라, 샌드박스, 파이프라인, 시작, start, init 등의 키워드가 언급되면 이 스킬을 트리거한다."
 ---
 
-# ⛵ Vela Engine v1.3 — Sandbox Development System
+# ⛵ Vela Engine v2.0 — Sandbox Development System
 
 Vela는 Claude Code를 완전히 감싸는 샌드박스 엔진이다.
 
@@ -74,10 +74,11 @@ init이 안 되어 있으면 자동으로 init을 먼저 수행한 후 파이프
    - 🧭 **medium**: quick (init → plan → execute → verify → commit → finalize) — 3파일 이하
    - ✦ **large**: standard (full 10-step with research, plan, team review) — 대규모 작업
    - 🔄 **ralph**: ralph (테스트 통과까지 자동 반복) — 버그 수정, TDD
+   - 🔧 **hotfix**: hotfix (init → execute → commit) — 문서, 설정 등 비-소스 수정
 
 4. **파이프라인 시작**
    ```bash
-   node .vela/cli/vela-engine.js init "작업 설명" --scale <small|medium|large|ralph> --type <code|code-bug|code-refactor|docs>
+   node .vela/cli/vela-engine.js init "작업 설명" --scale <small|medium|large|ralph|hotfix> --type <code|code-bug|code-refactor|docs>
    ```
 
 5. **파이프라인 진행**
