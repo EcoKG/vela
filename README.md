@@ -1,4 +1,4 @@
-# ⛵ Vela Engine v1.3 — Sandbox Development System
+# ⛵ Vela Engine v1.5 — Sandbox Development System
 
 **Vela**(돛자리)는 Claude Code를 완전히 감싸는 샌드박스 엔진이다.
 Claude Code는 독자적으로 작동할 수 없으며, 모든 행위는 Vela의 파이프라인을 통해서만 진행된다.
@@ -209,10 +209,15 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 ### Hook 실행 중
 
 ```
-⛵ Checking harbor clearance...
-🌟 Verifying navigation chart...
-🧭 Plotting current position...
-🔭 Logging voyage data...
+⛵ Checking harbor clearance...     (Gate Keeper)
+🌟 Verifying navigation chart...    (Gate Guard)
+🧭 Plotting current position...     (Orchestrator)
+🔭 Logging voyage data...           (Tracker)
+⛵ Checking active voyage...        (Stop)
+⛵ Scanning for interrupted voyages... (SessionStart)
+✦ Preserving navigation state...    (PreCompact)
+✦ Restoring navigation state...     (PostCompact)
+⛵ Briefing crew member...          (SubagentStart)
 ```
 
 ### 시작 시 메시지
@@ -257,7 +262,7 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 ```
 your-project/
 ├── .vela/
-│   ├── hooks/          ← Gate Keeper, Gate Guard, Orchestrator, Tracker
+│   ├── hooks/          ← 9 hooks (Gate Keeper, Guard, Orchestrator, Tracker, Stop, SessionStart, Compact, SubagentStart)
 │   ├── cli/            ← vela-engine, vela-read, vela-write
 │   ├── agents/         ← vela.md, researcher, planner, executor, reviewer, leader
 │   ├── cache/          ← TreeNode SQLite
@@ -295,6 +300,7 @@ vela-engine sub-transition
 vela-engine branch [--mode auto|prompt|none]
 vela-engine commit [--message TEXT]
 vela-engine cancel
+vela-engine history
 ```
 
 ---
