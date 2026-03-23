@@ -320,10 +320,11 @@ Leader(PM)가 Reviewer 리포트를 보고 reject을 결정하면, 자동 재시
 
 ---
 
-## 팀 운영 — 전부 Agent Teams
+## 팀 운영 — Worker=Teams, Reviewer/Leader=Subagent
 
-파이프라인 시작 시 TeamCreate로 팀을 1회 생성하고, 모든 단계에서 같은 팀에 teammates를 소환한다.
-파이프라인 완료 시 TeamDelete로 정리한다.
+Worker(작업자)는 Agent Teams teammate로 소환 (팀 내 소통/협업 가능).
+Reviewer/Leader는 Subagent로 소환 (독립 평가, 소통 불필요, 토큰 절감).
+PM은 approval/review를 직접 작성할 수 없다 (GUARD 11 차단).
 
 ### Standard Pipeline (large)
 
@@ -331,33 +332,40 @@ Leader(PM)가 Reviewer 리포트를 보고 reject을 결정하면, 자동 재시
 1. TeamCreate: team_name "vela-pipeline" (파이프라인 시작 시 1회)
 
 [Research]
-2. 연구원 3명 소환 (team_name "vela-pipeline"):
+2. 연구원 3명 소환 (Agent 도구 + team_name "vela-pipeline"):
    - name: "security-researcher" → 보안 관점
    - name: "architecture-researcher" → 아키텍처 관점
    - name: "quality-researcher" → 품질/성능 관점
 3. 3명 완료 → PM이 종합하여 research.md 작성
-4. Reviewer teammate 소환 → review-research.md
-5. Leader teammate 소환 → approval-research.json
+4. Reviewer subagent 소환 (Agent 도구, team_name 없음) → review-research.md
+5. Leader subagent 소환 (Agent 도구, team_name 없음) → approval-research.json
 
 [Plan]
-6. Planner teammate 소환 → plan.md (Architecture, Class Spec, Test Strategy)
-7. Reviewer teammate 소환 → review-plan.md
-8. Leader teammate 소환 → approval-plan.json
+6. Planner teammate 소환 (team_name "vela-pipeline") → plan.md
+7. Reviewer subagent 소환 → review-plan.md
+8. Leader subagent 소환 → approval-plan.json
 
-[Execute]
-9. Executor teammate 소환 → 코드 구현
-10. Reviewer teammate 소환 → review-execute.md
-11. Leader teammate 소환 → approval-execute.json
+[Execute — 소규모]
+9. Executor subagent 소환 (team_name 없음) → 코드 구현
+10. Reviewer subagent 소환 → review-execute.md
+11. Leader subagent 소환 → approval-execute.json
+
+[Execute — 대규모 (6+ 파일, 모듈 분리 가능)]
+9. Executor teammate 여러 명 소환 (team_name "vela-pipeline", 모듈별 파일 소유)
+10. Reviewer subagent 소환 → review-execute.md
+11. Leader subagent 소환 → approval-execute.json
 
 12. TeamDelete (파이프라인 완료 시)
 ```
 
-모든 Worker/Reviewer/Leader는 같은 팀("vela-pipeline")의 teammates로 소환한다.
-PM은 approval/review를 직접 작성할 수 없다 (GUARD 11이 차단).
-
 ### Quick Pipeline (medium)
 
-동일하게 Agent Teams 사용. TeamCreate → teammates → TeamDelete.
+TeamCreate → Worker teammates + Reviewer/Leader subagent → TeamDelete.
+
+```
+[Plan]  Planner teammate + Reviewer subagent + Leader subagent
+[Execute] Executor subagent + Reviewer subagent + Leader subagent
+```
 
 ### Trivial Pipeline (small)
 

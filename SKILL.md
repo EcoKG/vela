@@ -83,8 +83,8 @@ init이 안 되어 있으면 자동으로 init을 먼저 수행한 후 파이프
 
 5. **파이프라인 진행**
    `.vela/agents/vela.md`의 지시사항에 따라 파이프라인 단계를 순서대로 진행한다.
-   - standard: Agent Teams (전 단계 — research/plan/execute/review/leader)
-   - quick: Agent Teams (plan/execute/review/leader)
+   - standard: Worker=Teams + Reviewer/Leader=Subagent
+   - quick: Worker=Teams + Reviewer/Leader=Subagent
    - trivial: PM 직접 수행
 
 ---
@@ -382,23 +382,25 @@ node .vela/cli/vela-engine.js commit --message "custom message"
 
 ---
 
-## 팀 메커니즘 — Agent Teams
+## 팀 메커니즘 — Worker=Teams, Reviewer/Leader=Subagent
 
-Research, Plan, Execute 단계에서 **Claude Code Agent Teams**를 사용한다.
-각 역할은 **독립 Claude 인스턴스**로 실행되며, 별도의 컨텍스트 윈도우를 가진다.
+Worker(작업자)는 Agent Teams teammate로, Reviewer/Leader는 Subagent로 소환한다.
+Worker는 팀 내 소통/협업이 가능하고, Reviewer/Leader는 독립 평가만 수행하므로 Subagent가 효율적이다.
 
 ### 팀 구성
 
 | 역할 | 실행 방식 | 책임 |
 |------|----------|------|
 | **PM (Team Lead)** | 메인 세션 | 파이프라인 조율, 에이전트 소환/종료, 엔진 명령 실행 |
-| **Vela-Researcher** | **독립 에이전트** | 프로젝트 분석, research.md 작성 |
-| **Vela-Planner** | **독립 에이전트** | 아키텍처 설계, 클래스 명세서, plan.md 작성 |
-| **Vela-Executor** | **독립 에이전트** | TDD 기반 코드 구현 |
-| **Vela-Reviewer** | **독립 에이전트** | 산출물 품질 점검, review-{step}.md 작성 |
-| **Vela-Leader** | **독립 에이전트** | Reviewer 리포트 기반 최종 판단, approval-{step}.json 작성 |
+| **Researcher** (3명) | **Teammate** (team_name 포함) | 프로젝트 병렬 분석, research.md 작성 |
+| **Planner** | **Teammate** (team_name 포함) | 아키텍처 설계, plan.md 작성 |
+| **Executor** (소규모) | **Subagent** | 코드 구현 |
+| **Executor** (대규모) | **Teammate** (team_name 포함) | 모듈별 병렬 구현 |
+| **Reviewer** | **Subagent** | 산출물 품질 점검, review-{step}.md 작성 |
+| **Leader** | **Subagent** | Reviewer 리포트 기반 판단, approval-{step}.json 작성 |
 
-모든 에이전트는 `.vela/agents/` 디렉토리의 지시사항(CLAUDE.md)을 따른다.
+에이전트 지시사항: `.vela/agents/` 디렉토리 참조.
+PM은 approval/review 직접 작성 불가 (GUARD 11 차단).
 
 ### 공통 실행 루프
 
@@ -406,7 +408,7 @@ Research, Plan, Execute 단계에서 **Claude Code Agent Teams**를 사용한다
 
 ```
 PM(Team Lead)
-  → Worker 에이전트 소환 (Agent 도구 + team_name)
+  → Worker 소환 (Teammate: team_name "vela-pipeline" / 또는 Subagent)
      → Worker: 독립 컨텍스트에서 작업 → 산출물 작성 → PM에게 완료 메시지
   → Reviewer 에이전트 소환
      → Reviewer: 산출물만 읽고 review-{step}.md 작성 → PM에게 점수 보고
