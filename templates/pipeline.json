@@ -194,6 +194,21 @@
           "artifacts": []
         }
       }
+    },
+    "hotfix": {
+      "description": "Minimal pipeline for non-source changes (docs, config, readme). Skips review.",
+      "inherits": "standard",
+      "steps_only": ["init", "execute", "commit"],
+      "overrides": {
+        "execute": {
+          "max_revisions": 1,
+          "mode": "readwrite"
+        },
+        "commit": {
+          "exit_gate": []
+        }
+      },
+      "hotfix_mode": true
     }
   },
   "modes": {

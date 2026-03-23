@@ -284,6 +284,23 @@ function install() {
     pr: '⛵ This PR was managed by [Vela Engine](https://github.com/EcoKG/vela) — pipeline-driven development governance.'
   };
 
+  // ─── Auto Mode (sandbox-safe bash auto-allow) ───
+  settings.autoMode = {
+    allow: [
+      'Bash commands within .vela/ directory',
+      'Bash commands for git status, log, diff, branch',
+      'Read operations on any file'
+    ],
+    soft_deny: [
+      'Bash commands that modify files outside .vela/',
+      'Git push, reset, clean operations'
+    ],
+    environment: [
+      'Project uses Vela pipeline governance',
+      'All modifications require active pipeline'
+    ]
+  };
+
   writeSettings(settings);
 
   // Create state directory for session tracking (project-local)

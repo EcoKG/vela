@@ -95,9 +95,10 @@ function cmdInit() {
         small: 'trivial pipeline (init → execute → commit → finalize) — 단일 파일, 10줄 이하',
         medium: 'quick pipeline (init → plan → execute → verify → commit → finalize) — 3파일 이하, 100줄 이하',
         large: 'standard pipeline (full 10-step with research, plan, team review) — 대규모 작업',
-        ralph: 'ralph pipeline (테스트 통과까지 자동 반복) — 버그 수정, TDD'
+        ralph: 'ralph pipeline (테스트 통과까지 자동 반복) — 버그 수정, TDD',
+        hotfix: 'hotfix pipeline (init → execute → commit) — 문서, 설정 등 비-소스 수정'
       },
-      usage: 'vela-engine init "task" --scale small|medium|large|ralph',
+      usage: 'vela-engine init "task" --scale small|medium|large|ralph|hotfix',
       message: 'User must select pipeline scale. Present the options and let them choose.'
     });
   }
@@ -885,6 +886,7 @@ function scaleToPipeline(scale) {
     case 'medium': return 'quick';
     case 'large': return 'standard';
     case 'ralph': return 'ralph';
+    case 'hotfix': return 'hotfix';
     default: return 'standard';
   }
 }

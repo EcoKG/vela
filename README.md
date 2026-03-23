@@ -1,4 +1,4 @@
-# ⛵ Vela Engine v1.5 — Sandbox Development System
+# ⛵ Vela Engine v2.0 — Sandbox Development System
 
 **Vela**(돛자리)는 Claude Code를 완전히 감싸는 샌드박스 엔진이다.
 Claude Code는 독자적으로 작동할 수 없으며, 모든 행위는 Vela의 파이프라인을 통해서만 진행된다.
@@ -108,11 +108,18 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 | **quick** | init → plan → execute → verify → commit → finalize | `--scale medium` |
 | **trivial** | init → execute → commit → finalize | `--scale small` |
 | **ralph** | init → execute ↔ verify (반복) → commit → finalize | `--scale ralph` |
+| **hotfix** | init → execute → commit | `--scale hotfix` |
 
 `--scale` 필수. 미지정 시 AskUserQuestion으로 사용자에게 선택 요구.
 
 ### Ralph 모드
 테스트 통과까지 execute → verify를 최대 10회 자동 반복. 버그 수정/TDD에 적합.
+
+### Hotfix 모드
+비-소스 변경(문서, 설정, README)용 최소 파이프라인. 리뷰 스킵.
+
+### Pipeline 템플릿
+`templates/presets.json`에 사전 정의된 패턴: auth, api-crud, bugfix, refactor, migration, docs
 
 ---
 
@@ -306,6 +313,8 @@ vela-engine branch [--mode auto|prompt|none]
 vela-engine commit [--message TEXT]
 vela-engine cancel
 vela-engine history
+vela-cost                                            # 파이프라인 비용/메트릭
+vela-report [--html output.html]                     # 파이프라인 리포트/대시보드
 ```
 
 ---
