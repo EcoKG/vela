@@ -284,7 +284,7 @@ PM이 Worker 소환 (Teammate 또는 Subagent, 모델은 작업별 선택)
 ```
 Agent 도구:
   name: "executor"
-  model: "claude-sonnet-4-6"
+  model: "sonnet"
   prompt: ".vela/agents/executor.md의 목차(첫 15줄)를 읽고,
            필요한 섹션만 선택적으로 읽으세요.
            담당 파일: {files}
@@ -404,13 +404,14 @@ node .vela/cli/vela-engine.js commit --message "custom message"
 **Teammate** = 에이전트 간 소통(SendMessage)이 필요한 작업.
 **Subagent** = 독립적, 단일 결과물 생산. 소통 불필요.
 
-| 조건 | 방식 | 모델 |
-|------|------|------|
-| 다중 파일/CrossLayer 동시 수정 | **Teammate** | Sonnet |
-| 독립 리뷰/점검 | **Subagent** | Sonnet |
-| 단일 모듈 수정 | **Subagent** | Sonnet |
-| 파일 탐색 | **Subagent** | Haiku |
-| 설계/디버깅 분석 | **Subagent** | Opus |
+| 조건 | 방식 | model 파라미터 |
+|------|------|---------------|
+| 경쟁가설 디버깅 (리서치) | **Teammate** | `"opus"` |
+| 다중 파일/CrossLayer 동시 수정 | **Teammate** | `"sonnet"` |
+| 독립 리뷰/점검 | **Subagent** | `"sonnet"` |
+| 단일 모듈 수정 | **Subagent** | `"sonnet"` |
+| 파일 탐색 | **Subagent** | `"haiku"` |
+| 설계/디버깅 분석 | **Subagent** | `"opus"` |
 
 ## 팀 구성 규칙
 
@@ -425,7 +426,7 @@ node .vela/cli/vela-engine.js commit --message "custom message"
 ```
 Agent 도구:
   name: "executor"
-  model: "claude-sonnet-4-6"
+  model: "sonnet"
   prompt: ".vela/agents/executor.md의 목차(첫 15줄)를 읽고,
            현재 작업에 필요한 섹션만 선택적으로 읽으세요.
            담당 파일: {files}

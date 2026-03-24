@@ -16,7 +16,7 @@
 
 ## AskUserQuestion Labels
 - Pipeline start / Environment setup only
-- Solo (direct analysis) / Subagent / 3 Subagents parallel
+- Solo (direct analysis) / Subagent / 3 Teammates parallel (competing hypothesis)
 - Small (trivial) / Medium (quick) / Large (standard) / Ralph
 - Approve / Request changes / Cancel pipeline
 - Use this message / Edit / Review diff first

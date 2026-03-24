@@ -164,16 +164,17 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 
 ### Teammate vs Subagent
 
-**Teammate** = 에이전트 간 소통 필요 (CrossLayer, 다중 모듈 동시 수정).
-**Subagent** = 독립 단일 작업 (리뷰, 단일 모듈, 탐색).
+**Teammate** = 에이전트 간 소통(SendMessage) 필요.
+**Subagent** = 독립 단일 작업, 결과만 반환.
 
-| 조건 | 방식 | 모델 |
-|------|------|------|
-| CrossLayer/다중 파일 동시 수정 | **Teammate** | Sonnet |
-| 독립 리뷰/점검 | **Subagent** | Sonnet |
-| 단일 모듈 수정 | **Subagent** | Sonnet |
-| 파일 탐색 | **Subagent** | Haiku |
-| 설계/분석 | **Subagent** | Opus |
+| 조건 | 방식 | model |
+|------|------|-------|
+| 경쟁가설 디버깅 (리서치) | **Teammate** | `"opus"` |
+| CrossLayer/다중 파일 동시 수정 | **Teammate** | `"sonnet"` |
+| 독립 리뷰/점검 | **Subagent** | `"sonnet"` |
+| 단일 모듈 수정 | **Subagent** | `"sonnet"` |
+| 파일 탐색 | **Subagent** | `"haiku"` |
+| 설계/분석 | **Subagent** | `"opus"` |
 
 ### 팀 규칙
 
