@@ -790,7 +790,7 @@ function checkExitGate(stepDef, state) {
         }
         break;
       case 'leader_approved':
-        // File-based: Leader agent writes approval-{step}.json with decision: "approve"
+        // File-based: PM writes approval-{step}.json with decision: "approve"
         if (artifactDir) {
           const approvalPath = path.join(artifactDir, `approval-${state.current_step}.json`);
           if (!fs.existsSync(approvalPath)) {
@@ -808,7 +808,7 @@ function checkExitGate(stepDef, state) {
         }
         break;
       case 'leader_review_exists':
-        // Reviewer agent writes review-{step}.md
+        // Reviewer subagent writes review-{step}.md
         if (artifactDir) {
           const reviewPath = path.join(artifactDir, `review-${state.current_step}.md`);
           if (!fs.existsSync(reviewPath)) {
