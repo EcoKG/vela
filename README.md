@@ -119,8 +119,8 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
   4차) 조립된 프롬프트를 사용자에게 보여주고 확인
        ⛵ 최적화된 프롬프트:
        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-       vela-gate-guard.js의 GUARD 11에서
-       PM 세션 감지 로직 버그 수정. ...
+       UserService의 이메일 검증 로직에서
+       중복 체크 누락 버그 수정. ...
        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   5차) 승인 → 조립된 프롬프트로 파이프라인 시작
 ```
@@ -169,7 +169,7 @@ Reviewer/Leader는 Subagent — 독립 평가, 소통 불필요, 토큰 절감 (
 | **Reviewer** | **Subagent** | 읽고 평가만, 소통 불필요 |
 | **Leader** | **Subagent** | 읽고 판단만, 소통 불필요 |
 
-PM은 approval/review를 직접 작성할 수 없다 (GUARD 11 차단).
+approval/review 파일은 team 단계(research/plan/execute)에서만 작성 가능 (GUARD 11).
 
 ### 승인 메커니즘 — 파일 기반
 
@@ -204,7 +204,7 @@ PM은 approval/review를 직접 작성할 수 없다 (GUARD 11 차단).
 
 | 게이트 | 코드 | 규칙 |
 |--------|------|------|
-| Bash 차단 | VK-01, VK-02 | Vela CLI 외 차단 |
+| Bash 차단 | VK-01, VK-02 | Vela CLI 외 차단. 안전한 읽기 명령은 모든 모드 허용. 파이프라인 활성 시 git/gh 허용 |
 | 모드 강제 | VK-03, VK-04 | 읽기전용에서 Write/Edit 차단 |
 | 민감파일 보호 | VK-05 | .env, credentials.json 차단 |
 | 시크릿 감지 | VK-06 | 15개 패턴 차단 |
@@ -224,7 +224,7 @@ PM은 approval/review를 직접 작성할 수 없다 (GUARD 11 차단).
 | GUARD 7 | VG-07 | execute/commit/finalize에서만 git commit 허용 |
 | GUARD 8 | VG-08 | verify 완료 전 git push 차단 |
 | GUARD 9 | — | 보호 브랜치 직접 커밋 경고 |
-| **GUARD 11** | **VG-11** | **PM이 approval/review 직접 작성 차단** — Subagent만 가능 |
+| **GUARD 11** | **VG-11** | **비-team 단계에서 approval/review 작성 차단** — team 단계에서만 허용 |
 
 ### 차단 시 자동 복구 (Block Recovery)
 

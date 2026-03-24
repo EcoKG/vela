@@ -55,8 +55,8 @@ async function main() {
   const currentMode = getCurrentMode(cwd);
 
   // ─── GATE 1: Bash Blocking ───
-  // Vela uses its own CLI. Bash is blocked unless it's a Vela CLI command
-  // or a safe read-only command in read/readwrite mode.
+  // Vela uses its own CLI. Bash is blocked unless it's a Vela CLI command,
+  // a safe read-only command, or a git/gh command during an active pipeline.
   if (tool_name === 'Bash') {
     const cmd = (tool_input.command || '').trim();
 
@@ -68,9 +68,19 @@ async function main() {
       process.exit(0);
     }
 
-    // In read/readwrite mode, allow safe read-only bash commands
-    if ((currentMode === 'read' || currentMode === 'readwrite') && SAFE_BASH_READ.test(cmd)) {
+    // Allow safe read-only bash commands in all modes
+    if (SAFE_BASH_READ.test(cmd)) {
       process.exit(0);
+    }
+
+    // Allow git/gh commands during active pipeline
+    // Gate Guard (VG-07, VG-08) handles step-based restrictions
+    // Permission Deny rules handle dangerous commands (--force, --hard, --no-verify)
+    if (/^\s*(git|gh)\s/.test(cmd)) {
+      const velaState = findActivePipeline(velaDir);
+      if (velaState) {
+        process.exit(0);
+      }
     }
 
     // Check for write patterns in bash

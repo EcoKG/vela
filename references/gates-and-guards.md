@@ -8,7 +8,7 @@
 
 | 게이트 | 코드 | 규칙 | 동작 |
 |--------|------|------|------|
-| GATE 1 | VK-01, VK-02 | Bash 차단 | Vela CLI 명령 외 Bash 사용 차단. 읽기 모드에서 안전한 명령(ls, git status 등)만 허용 |
+| GATE 1 | VK-01, VK-02 | Bash 차단 | Vela CLI 명령 외 Bash 사용 차단. 안전한 읽기 명령(ls, git status 등)은 모든 모드에서 허용. 활성 파이프라인 시 git/gh 명령 허용 (Gate Guard가 단계별 제한) |
 | GATE 2 | VK-03, VK-04 | 모드 강제 | 읽기전용 모드에서 Write/Edit 차단. `.vela/` 내부 파일은 예외 (pipeline-state.json 제외) |
 | GATE 3 | VK-05 | 민감파일 보호 | .env, credentials.json 등 민감 파일 쓰기 차단 |
 | GATE 4 | VK-06 | 시크릿 감지 | API 키, 토큰, 비밀키 등 15개 패턴 감지 시 쓰기 차단 |
@@ -41,7 +41,7 @@
 | GUARD 7 | VG-07 | execute/commit/finalize에서만 git commit 허용 |
 | GUARD 8 | VG-08 | verify 완료 전 git push 차단 |
 | GUARD 9 | — | 보호 브랜치 직접 커밋 경고 (차단 아님) |
-| GUARD 11 | VG-11 | PM이 approval-*.json / review-*.md 직접 작성 차단 (Leader/Reviewer subagent만 가능) |
+| GUARD 11 | VG-11 | 비-team 단계에서 approval-*.json / review-*.md 작성 차단 (team 단계에서만 허용) |
 
 ### Permission Deny 규칙 (절대 차단)
 

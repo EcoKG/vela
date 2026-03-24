@@ -447,7 +447,7 @@ Leader(PM)가 Reviewer 리포트를 보고 reject을 결정하면, 자동 재시
 
 Worker(작업자)는 Agent Teams teammate로 소환 (팀 내 소통/협업 가능).
 Reviewer/Leader는 Subagent로 소환 (독립 평가, 소통 불필요, 토큰 절감).
-PM은 approval/review를 직접 작성할 수 없다 (GUARD 11 차단).
+approval/review 파일은 team 단계(research/plan/execute)에서만 작성 가능 (GUARD 11).
 
 ### Standard Pipeline (large)
 
@@ -537,7 +537,7 @@ Agent 도구:
 | 코드 | 차단 사유 | 복구 행동 |
 |------|----------|----------|
 | **VK-01** | Bash 쓰기 (읽기 모드) | Bash 대신 Read/Glob/Grep 도구 또는 `.vela/cli/vela-read.js` 사용 |
-| **VK-02** | Bash 제한 | Bash 대신 Claude Code 내장 도구(Read/Write/Edit/Glob/Grep) 사용 |
+| **VK-02** | Bash 제한 (git/gh 외) | Bash 대신 Claude Code 내장 도구(Read/Write/Edit/Glob/Grep) 사용. git/gh 명령은 파이프라인 활성 시 허용 |
 | **VK-03** | pipeline-state.json 직접 수정 | `node .vela/cli/vela-engine.js transition` 으로 상태 변경 |
 | **VK-04** | 읽기 모드에서 쓰기 시도 | 현재 단계 완료 → `vela-engine transition` → 쓰기 가능 단계에서 재시도 |
 | **VK-05** | 민감 파일(.env 등) 쓰기 | `.env.example` 또는 `.env.template` 파일명으로 변경 |
@@ -557,7 +557,7 @@ Agent 도구:
 | **VG-06** | 리비전 한도 초과 | `vela-engine transition`으로 다음 단계 이동 또는 사용자에게 승인 요청 |
 | **VG-07** | 잘못된 단계에서 git commit | `node .vela/cli/vela-engine.js commit` 사용 (commit 단계에서) |
 | **VG-08** | verify 전 git push | verify 단계 완료 후 push |
-| **VG-11** | PM이 approval/review 직접 작성 | Agent 도구로 Reviewer/Leader subagent 소환 |
+| **VG-11** | 비-team 단계에서 approval/review 작성 | team 단계(research/plan/execute)로 이동 후 작성 |
 
 ### 복구 원칙
 

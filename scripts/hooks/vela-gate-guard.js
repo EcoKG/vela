@@ -139,25 +139,22 @@ async function main() {
         process.exit(2);
       }
 
-      // ─── GUARD 11: approval/review files — subagent only ───
-      // PM must NOT write these directly. Only Leader/Reviewer subagents can.
-      // Detection: PM's session_id is registered in pm-session.json by orchestrator.
+      // ─── GUARD 11: approval/review files — team step only ───
+      // These files should only be written during steps with team configuration
+      // (research, plan, execute) where Leader/Reviewer subagents operate.
+      // Note: session_id check was removed because Agent-tool subagents share
+      // the parent's session_id, making PM vs subagent distinction impossible.
       if (protectedFile.startsWith('approval-') || protectedFile.startsWith('review-')) {
-        const pmSessionPath = path.join(velaDir, 'state', 'pm-session.json');
-        if (fs.existsSync(pmSessionPath)) {
-          try {
-            const pmData = JSON.parse(fs.readFileSync(pmSessionPath, 'utf-8'));
-            const { session_id: inputSessionId } = input;
-            if (pmData.session_id && inputSessionId === pmData.session_id) {
-              process.stderr.write(
-                `🌟 [Vela] ✦ BLOCKED [VG-11]: PM cannot directly write ${protectedFile}.\n` +
-                `  approval-*.json → Leader subagent only\n` +
-                `  review-*.md → Reviewer subagent only\n` +
-                `  Recovery: Agent 도구로 Reviewer/Leader subagent를 소환하세요.`
-              );
-              process.exit(2);
-            }
-          } catch (e) {}
+        const stepDef = getCurrentStepDef(pipelineDef, state);
+        const hasTeam = stepDef && stepDef.team;
+        if (!hasTeam) {
+          process.stderr.write(
+            `🌟 [Vela] ✦ BLOCKED [VG-11]: Cannot write ${protectedFile} in non-team step.\n` +
+            `  Step: ${currentStep} (no team configuration)\n` +
+            `  approval-*.json / review-*.md are only allowed during team steps (research, plan, execute).\n` +
+            `  Recovery: Ensure you are in a team step before writing review/approval files.`
+          );
+          process.exit(2);
         }
       }
 
