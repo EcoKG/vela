@@ -828,10 +828,10 @@ function checkExitGate(stepDef, state) {
             try {
               const approval = JSON.parse(fs.readFileSync(execApprovalPath, 'utf-8'));
               if (approval.decision !== 'approve') {
-                missing.push('leader_rejected:execute');
+                missing.push('rejected:execute');
               }
             } catch (e) {
-              missing.push('leader_approval_invalid:execute');
+              missing.push('approval_invalid:execute');
             }
           }
         }

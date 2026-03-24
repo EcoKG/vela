@@ -36,6 +36,8 @@ if [ "$LOCAL_FLAG" = "--local" ]; then
     cp "$TMP/scripts/statusline.sh" .vela/
     cp "$TMP/scripts/agents/"*.md .vela/agents/
     cp "$TMP/templates/"*.json .vela/templates/
+    mkdir -p .vela/references
+    cp "$TMP/references/"*.md .vela/references/ 2>/dev/null
     # Update .claude/agents/vela.md
     if [ -d ".claude/agents" ]; then
       cp "$TMP/scripts/agents/vela.md" .claude/agents/

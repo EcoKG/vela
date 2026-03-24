@@ -555,6 +555,10 @@ function upgrade() {
     { src: 'scripts/agents/leader.md', dst: 'agents/leader.md' },
     { src: 'scripts/agents/conflict-manager.md', dst: 'agents/conflict-manager.md' },
     { src: 'templates/pipeline.json', dst: 'templates/pipeline.json' },
+    { src: 'references/interactive-ui.md', dst: 'references/interactive-ui.md' },
+    { src: 'references/gates-and-guards.md', dst: 'references/gates-and-guards.md' },
+    { src: 'references/cli-reference.md', dst: 'references/cli-reference.md' },
+    { src: 'references/messages-en.md', dst: 'references/messages-en.md' },
   ];
 
   // Do NOT overwrite config.json (user may have customized it)
@@ -618,7 +622,7 @@ function validate() {
   // 1. Required directories
   const requiredDirs = [
     'hooks', 'hooks/shared', 'cli', 'cache', 'templates',
-    'state', 'artifacts', 'agents'
+    'state', 'artifacts', 'agents', 'references'
   ];
   for (const dir of requiredDirs) {
     const dirPath = path.join(velaDir, dir);
@@ -655,7 +659,11 @@ function validate() {
     { src: 'scripts/agents/leader.md', dst: 'agents/leader.md' },
     { src: 'scripts/agents/conflict-manager.md', dst: 'agents/conflict-manager.md' },
     { src: 'templates/pipeline.json', dst: 'templates/pipeline.json' },
-    { src: 'templates/config.json', dst: 'templates/config.json' }
+    { src: 'templates/config.json', dst: 'templates/config.json' },
+    { src: 'references/interactive-ui.md', dst: 'references/interactive-ui.md' },
+    { src: 'references/gates-and-guards.md', dst: 'references/gates-and-guards.md' },
+    { src: 'references/cli-reference.md', dst: 'references/cli-reference.md' },
+    { src: 'references/messages-en.md', dst: 'references/messages-en.md' }
   ];
 
   for (const f of requiredFiles) {
