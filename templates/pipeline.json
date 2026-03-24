@@ -101,8 +101,7 @@
             "worker_role": "executor",
             "reviewer_role": "reviewer",
             "approver": "pm"
-          },
-          "leader_requires_review_md": true
+          }
         },
         {
           "id": "verify",
