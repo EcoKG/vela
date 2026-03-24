@@ -76,7 +76,7 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 │                                                           │
 │  🌟 TEAM ────────────────────────────────────────        │
 │  Subagent: 독립 작업 (Haiku/Sonnet/Opus)                   │
-│  Teammate: 소통 필요 시만 (CrossLayer/다중 모듈)             │
+│  Teammate: 소통 필요 (Research 경쟁가설/CrossLayer)           │
 │  TeamCreate/Delete는 Teammate 사용 시에만                   │
 │                                                           │
 │  ✦ ARCHITECTURE ─────────────────────────────────        │

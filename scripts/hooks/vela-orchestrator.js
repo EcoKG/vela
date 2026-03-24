@@ -111,8 +111,7 @@ async function main() {
       output.push(`│ 🌟 Team Step ────────────────────`);
       output.push(`│ │ Worker: ${stepDef.team.worker_role}`);
       output.push(`│ │ Reviewer: subagent (Sonnet)`);
-      output.push(`│ │ Approval: PM direct judgment`);
-      // Check for approval file
+      // Check for approval file (PM writes directly)
       if (state._artifactDir) {
         const approvalFile = `approval-${state.current_step}.json`;
         const approvalPath = path.join(state._artifactDir, approvalFile);
