@@ -592,7 +592,10 @@ Agent 도구:
    - "security-researcher" → 보안 관점
    - "architecture-researcher" → 아키텍처 관점
    - "quality-researcher" → 품질/성능 관점
-   ※ SendMessage로 서로의 가설을 반박/검증 (경쟁가설 디버깅)
+   소통 흐름:
+   ① 각자 가설 수립 후 SendMessage로 공유
+   ② 증거 수집 중 다른 리서처 가설의 반박 증거 발견 시 즉시 공유
+   ③ 교차 검증으로 가설 제거 → 생존 가설 확정
 3. PM이 3개 리포트를 종합하여 research.md 작성
 4. Reviewer subagent (Sonnet) → review-research.md
 5. PM이 review 기반으로 approve/reject 판단

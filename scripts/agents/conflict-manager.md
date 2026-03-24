@@ -34,12 +34,24 @@ CrossLayer/다중 모듈 개발에서 **git 충돌 관리**와 **인터페이스
 - 양쪽 코드의 타입/시그니처가 일치하는지 확인
 
 ### 3단계: 병합
-- 모든 팀원 작업 완료 후 git worktree 병합 수행
-- 충돌 발생 시:
-  1. 충돌 파일 확인
-  2. plan.md의 Class Specification 기준으로 올바른 버전 판단
-  3. 수동 해결 후 테스트 실행
-  4. 테스트 통과 확인
+모든 팀원 작업 완료 후 git worktree 병합 수행:
+
+```bash
+# 각 팀원의 worktree 브랜치 확인
+git branch --list "worktree/*"
+
+# 메인 브랜치에서 각 worktree 브랜치를 순차 병합
+git merge worktree/frontend-dev --no-ff -m "merge: frontend-dev worktree"
+git merge worktree/backend-dev --no-ff -m "merge: backend-dev worktree"
+git merge worktree/db-dev --no-ff -m "merge: db-dev worktree"
+
+# 충돌 발생 시
+git diff --name-only --diff-filter=U  # 충돌 파일 확인
+# plan.md의 Class Specification 기준으로 올바른 버전 판단
+# 수동 해결 후
+git add <resolved-files>
+git merge --continue
+```
 
 ### 4단계: 통합 검증
 - 병합 후 전체 테스트 실행
