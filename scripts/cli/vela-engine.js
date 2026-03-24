@@ -789,25 +789,27 @@ function checkExitGate(stepDef, state) {
           }
         }
         break;
-      case 'leader_approved':
+      case 'approval_exists':
+      case 'leader_approved': // backward compatibility
         // File-based: PM writes approval-{step}.json with decision: "approve"
         if (artifactDir) {
           const approvalPath = path.join(artifactDir, `approval-${state.current_step}.json`);
           if (!fs.existsSync(approvalPath)) {
-            missing.push(`leader_approval_missing:approval-${state.current_step}.json`);
+            missing.push(`approval_missing:approval-${state.current_step}.json`);
           } else {
             try {
               const approval = JSON.parse(fs.readFileSync(approvalPath, 'utf-8'));
               if (approval.decision !== 'approve') {
-                missing.push(`leader_rejected:${state.current_step}`);
+                missing.push(`rejected:${state.current_step}`);
               }
             } catch (e) {
-              missing.push(`leader_approval_invalid:${state.current_step}`);
+              missing.push(`approval_invalid:${state.current_step}`);
             }
           }
         }
         break;
-      case 'leader_review_exists':
+      case 'review_exists':
+      case 'leader_review_exists': // backward compatibility
         // Reviewer subagent writes review-{step}.md
         if (artifactDir) {
           const reviewPath = path.join(artifactDir, `review-${state.current_step}.md`);
@@ -821,7 +823,7 @@ function checkExitGate(stepDef, state) {
         if (artifactDir) {
           const execApprovalPath = path.join(artifactDir, 'approval-execute.json');
           if (!fs.existsSync(execApprovalPath)) {
-            missing.push('leader_approval_missing:approval-execute.json');
+            missing.push('approval_missing:approval-execute.json');
           } else {
             try {
               const approval = JSON.parse(fs.readFileSync(execApprovalPath, 'utf-8'));

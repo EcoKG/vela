@@ -20,14 +20,14 @@
           "actor": "agent",
           "mode": "read",
           "entry_gate": ["init_complete"],
-          "exit_gate": ["research_md_exists", "leader_approved"],
+          "exit_gate": ["research_md_exists", "approval_exists"],
           "artifacts": ["research.md"],
           "max_revisions": 3,
           "treenode_cache": true,
           "team": {
             "worker_role": "researcher",
             "reviewer_role": "reviewer",
-            "leader_role": "leader"
+            "approver": "pm"
           }
         },
         {
@@ -36,13 +36,13 @@
           "actor": "agent",
           "mode": "write",
           "entry_gate": ["research_md_exists"],
-          "exit_gate": ["plan_md_exists", "plan_architecture_complete", "leader_approved"],
+          "exit_gate": ["plan_md_exists", "plan_architecture_complete", "approval_exists"],
           "artifacts": ["plan.md"],
           "max_revisions": 3,
           "team": {
             "worker_role": "planner",
             "reviewer_role": "reviewer",
-            "leader_role": "leader"
+            "approver": "pm"
           },
           "architecture": {
             "required_sections": ["## Architecture", "## Class Specification", "## Test Strategy"],
@@ -92,7 +92,7 @@
           "actor": "agent",
           "mode": "readwrite",
           "entry_gate": ["branch_created"],
-          "exit_gate": ["implementation_complete", "leader_review_exists"],
+          "exit_gate": ["implementation_complete", "review_exists"],
           "artifacts": ["task-summary.md"],
           "max_revisions": 5,
           "sub_phases": ["test-write", "implement", "refactor"],
@@ -100,7 +100,7 @@
           "team": {
             "worker_role": "executor",
             "reviewer_role": "reviewer",
-            "leader_role": "leader"
+            "approver": "pm"
           },
           "leader_requires_review_md": true
         },

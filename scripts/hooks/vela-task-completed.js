@@ -37,6 +37,17 @@ async function main() {
   if (step === 'research') {
     if (!fs.existsSync(path.join(artifactDir, 'research.md')))
       checks.push('research.md가 아직 작성되지 않았습니다');
+    // Verify teammate communication occurred (competing hypothesis)
+    const commPath = path.join(velaDir, 'state', 'teammate-comms.json');
+    try {
+      if (fs.existsSync(commPath)) {
+        const comms = JSON.parse(fs.readFileSync(commPath, 'utf-8'));
+        const researchComms = comms.filter(c => c.step === 'research');
+        if (researchComms.length === 0) {
+          checks.push('경쟁가설 디버깅: Researcher 간 SendMessage 소통이 감지되지 않았습니다');
+        }
+      }
+    } catch (e) {}
   }
 
   if (step === 'plan') {

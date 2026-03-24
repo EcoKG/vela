@@ -168,8 +168,29 @@ async function main() {
       action: 'agent_dispatch',
       description: tool_input.description || '',
       step: state.current_step,
+      team_name: tool_input.team_name || null,
+      model: tool_input.model || null,
       timestamp: Date.now()
     });
+  }
+
+  // ─── Teammate Communication Tracking ───
+  if (state && tool_name === 'SendMessage') {
+    const commPath = path.join(velaDir, 'state', 'teammate-comms.json');
+    let comms = [];
+    try {
+      if (fs.existsSync(commPath)) comms = JSON.parse(fs.readFileSync(commPath, 'utf-8'));
+    } catch (e) {}
+    comms.push({
+      step: state.current_step,
+      to: tool_input.to || '',
+      timestamp: Date.now()
+    });
+    try {
+      const stateDir = path.join(velaDir, 'state');
+      if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
+      fs.writeFileSync(commPath, JSON.stringify(comms));
+    } catch (e) {}
   }
 
   // ─── Trace Logging ───
