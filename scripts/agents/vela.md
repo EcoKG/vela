@@ -443,51 +443,186 @@ Leader(PM)가 Reviewer 리포트를 보고 reject을 결정하면, 자동 재시
 
 ---
 
-## 팀 운영 — Worker=Teams, Reviewer/Leader=Subagent
+## 에이전트 모델 선택 전략
 
-Worker(작업자)는 Agent Teams teammate로 소환 (팀 내 소통/협업 가능).
-Reviewer/Leader는 Subagent로 소환 (독립 평가, 소통 불필요, 토큰 절감).
-approval/review 파일은 team 단계(research/plan/execute)에서만 작성 가능 (GUARD 11).
+| 작업 유형 | 모델 | 용도 |
+|----------|------|------|
+| 파일 탐색, 검색, 읽기 | **Haiku** (`claude-haiku-4-5`) | Glob/Grep/Read 중심, 빠른 탐색 |
+| 코드 구현, 수정, 테스트, 리뷰 | **Sonnet** (`claude-sonnet-4-6`) | 코딩/리뷰 작업, 품질 + 비용 효율 |
+| 설계, 디버깅, 리서치 분석 | **Opus** (`claude-opus-4-6`) | 깊은 사고가 필요한 작업 |
 
-### Standard Pipeline (large)
+역할별 기본 모델:
+
+| 역할 | 모델 | 이유 |
+|------|------|------|
+| Researcher | Opus | 경쟁가설 디버깅, 깊은 분석 |
+| Planner | Opus | 아키텍처 설계, 클래스 명세 |
+| Executor | Sonnet | 코드 구현, 테스트 작성 |
+| Reviewer | Sonnet | 코드 리뷰, 품질 점검 |
+| Leader | Sonnet | 판단, 승인/거부 |
+| Conflict Manager | Sonnet | 충돌 관리, 병합 |
+| 탐색 전용 subagent | Haiku | 파일 찾기, 구조 파악 |
+
+## Teammate vs Subagent 구분
+
+**Teammate** = 에이전트 간 소통(SendMessage)이 필요한 작업.
+**Subagent** = 독립적, 단일 결과물만 생산하는 작업.
+
+| 조건 | 실행 방식 | 이유 |
+|------|----------|------|
+| 다중 파일/모듈 동시 수정 | **Teammate** | 파일 충돌 방지를 위한 실시간 소통 |
+| CrossLayer 개발 (프론트+백+DB) | **Teammate** | 계층 간 인터페이스 조율 |
+| 독립 리뷰/점검 | **Subagent** (Sonnet) | 편향 없는 독립 평가 |
+| 단일 파일/모듈 수정 | **Subagent** (Sonnet) | 소통 불필요 |
+| 파일 탐색/검색 | **Subagent** (Haiku) | 빠르고 저비용 |
+| 설계/디버깅 분석 | **Subagent** (Opus) | 깊은 사고, 소통 불필요 |
+
+## 팀 구성 규칙
+
+### 팀 크기: 3~5명
+- 소규모: 3명 (개발 2명 + 충돌관리 1명)
+- 중규모: 4명 (개발 3명 + 충돌관리 1명)
+- 대규모: 5명 (개발 4명 + 충돌관리 1명)
+
+### 태스크 배분: 팀원당 5~6개
+각 팀원에게 5~6개의 구체적 태스크를 할당한다.
+태스크는 담당 파일 범위 내에서 분리한다.
+
+### 파일 소유권 (File Ownership)
+- 각 팀원에게 담당 파일/디렉토리를 **명시적으로** 부여
+- 동일 파일을 여러 팀원이 수정하지 않음
+- Conflict Manager가 인터페이스 경계와 최종 병합 담당
+
+팀원 소환 시 프롬프트에 반드시 포함:
+```
+담당 파일: src/api/auth.js, src/api/session.js
+태스크:
+1. 로그인 API 엔드포인트 구현
+2. 세션 토큰 생성 로직
+3. 미들웨어 인증 체크
+4. 에러 응답 표준화
+5. 단위 테스트 작성
+```
+
+## 에이전트 MD 파일 — 목차 기반 로딩
+
+에이전트를 소환할 때 전체 MD 파일을 읽지 않는다.
+**MD 파일 상단의 목차(TOC)만 먼저 읽고, 필요한 섹션만 선택적으로 읽는다.**
+
+소환 프롬프트 패턴:
+```
+.vela/agents/{role}.md의 목차(첫 20줄)를 읽고,
+현재 작업에 필요한 섹션만 선택적으로 읽으세요.
+전체 파일을 한번에 읽지 마세요.
+```
+
+이렇게 하면 불필요한 프롬프트 토큰을 절감하면서
+단계별로 필요한 지시사항만 컨텍스트에 로딩할 수 있다.
+
+## 리서치 — 경쟁가설 디버깅
+
+Research 단계에서 **경쟁가설 디버깅(Competing Hypothesis Debugging)** 적용:
+
+1. **가설 생성** — 문제/작업에 대해 3~5개의 경쟁 가설 수립
+2. **증거 수집** — 각 가설에 대한 지지/반박 증거를 코드에서 수집
+3. **가설 제거** — 증거와 모순되는 가설을 제거
+4. **생존 가설 검증** — 남은 가설들을 추가 테스트/코드 분석으로 검증
+5. **결론** — 최종 생존 가설과 근거를 research.md에 문서화
+
+Researcher 에이전트 소환 시 프롬프트에 이 방법론을 포함한다.
+해석은 디테일할수록 좋지만, 과도한 분석으로 토큰을 낭비하지 않도록
+**증거 기반으로 신속히 가설을 제거**하는 데 집중한다.
+
+## CrossLayer Development
+
+여러 계층(프론트엔드, 백엔드, DB, 인프라 등)에 걸친 작업 시
+**Teammate**를 활용하여 계층별 병렬 개발을 진행한다.
+
+### CrossLayer 팀 구성 예시
 
 ```
-1. TeamCreate: team_name "vela-pipeline" (파이프라인 시작 시 1회)
+TeamCreate: "vela-pipeline"
 
-[Research]
-2. 연구원 3명 소환 (Agent 도구 + team_name "vela-pipeline"):
-   - name: "security-researcher" → 보안 관점
-   - name: "architecture-researcher" → 아키텍처 관점
-   - name: "quality-researcher" → 품질/성능 관점
-3. 3명 완료 → PM이 종합하여 research.md 작성
-4. Reviewer subagent 소환 (Agent 도구, team_name 없음) → review-research.md
-5. Leader subagent 소환 (Agent 도구, team_name 없음) → approval-research.json
+Teammate 1: "frontend-dev" (Sonnet)
+  담당: src/components/, src/pages/
+  태스크 5개: UI 컴포넌트, 라우팅, 상태관리, 폼 검증, API 호출
 
-[Plan]
-6. Planner teammate 소환 (team_name "vela-pipeline") → plan.md
-7. Reviewer subagent 소환 → review-plan.md
-8. Leader subagent 소환 → approval-plan.json
+Teammate 2: "backend-dev" (Sonnet)
+  담당: src/api/, src/services/
+  태스크 5개: API 엔드포인트, 비즈니스 로직, 인증, 미들웨어, 에러 핸들링
 
-[Execute — 소규모]
-9. Executor subagent 소환 (team_name 없음) → 코드 구현
-10. Reviewer subagent 소환 → review-execute.md
-11. Leader subagent 소환 → approval-execute.json
+Teammate 3: "db-dev" (Sonnet)
+  담당: sql/, src/repositories/
+  태스크 5개: 마이그레이션, 리포지토리, 쿼리 최적화, 인덱스, 시드 데이터
 
-[Execute — 대규모 (6+ 파일, 모듈 분리 가능)]
-9. Executor teammate 여러 명 소환 (team_name "vela-pipeline", 모듈별 파일 소유)
-10. Reviewer subagent 소환 → review-execute.md
-11. Leader subagent 소환 → approval-execute.json
+Teammate 4: "conflict-manager" (Sonnet)
+  담당: 전체 파일 읽기 + 인터페이스 경계 + 충돌 관리
+  .vela/agents/conflict-manager.md 참조
+```
+
+팀원 간 소통이 핵심:
+- frontend-dev → backend-dev: "API 응답 형식이 변경됨, DTO 확인 바람"
+- backend-dev → db-dev: "새 컬럼 추가 필요, 마이그레이션 요청"
+- conflict-manager: 모든 팀원의 작업 완료 후 병합 + 충돌 해결
+
+## Git Worktree 활용
+
+CrossLayer 개발 시 각 Teammate는 격리된 git worktree에서 작업한다.
+파일 충돌 없이 병렬 개발이 가능하며, Conflict Manager가 최종 병합한다.
+
+```
+Agent 도구:
+  team_name: "vela-pipeline"
+  name: "frontend-dev"
+  model: "claude-sonnet-4-6"
+  isolation: "worktree"
+```
+
+- 각 팀원이 독립 워크트리에서 작업 → 파일 충돌 없음
+- 작업 완료 후 Conflict Manager가 병합
+- 인터페이스 불일치 감지 시 관련 팀원에게 SendMessage
+
+## Standard Pipeline (large) — 팀 운영 흐름
+
+```
+1. TeamCreate: team_name "vela-pipeline"
+
+[Research] — Opus 모델
+2. Researcher subagent 3명 소환 (Opus, 독립 분석):
+   - "security-researcher" → 보안 관점
+   - "architecture-researcher" → 아키텍처 관점
+   - "quality-researcher" → 품질/성능 관점
+   ※ 각각 경쟁가설 디버깅 적용
+3. PM이 3개 리포트를 종합하여 research.md 작성
+4. Reviewer subagent (Sonnet) → review-research.md
+5. PM이 review 기반으로 approve/reject 판단
+
+[Plan] — Opus 모델
+6. Planner subagent (Opus) → plan.md 작성
+7. Reviewer subagent (Sonnet) → review-plan.md
+8. PM이 review 기반으로 approve/reject 판단
+
+[Execute — 단일 모듈]
+9. Executor subagent (Sonnet) → 코드 구현
+10. Reviewer subagent (Sonnet) → review-execute.md
+11. PM이 review 기반으로 approve/reject 판단
+
+[Execute — CrossLayer/다중 모듈]
+9. Teammate 3~5명 소환 (Sonnet, worktree 격리):
+   - 각 팀원에게 담당 파일 + 5~6개 태스크 할당
+   - Conflict Manager teammate 포함
+   - 팀원 간 SendMessage로 인터페이스 조율
+10. Reviewer subagent (Sonnet) → review-execute.md
+11. PM이 review 기반으로 approve/reject 판단
 
 12. TeamDelete (파이프라인 완료 시)
 ```
 
 ### Quick Pipeline (medium)
 
-TeamCreate → Worker teammates + Reviewer/Leader subagent → TeamDelete.
-
 ```
-[Plan]  Planner teammate + Reviewer subagent + Leader subagent
-[Execute] Executor subagent + Reviewer subagent + Leader subagent
+[Plan]    Planner subagent (Opus) + Reviewer subagent (Sonnet)
+[Execute] Executor subagent (Sonnet) + Reviewer subagent (Sonnet)
 ```
 
 ### Trivial Pipeline (small)
@@ -496,8 +631,7 @@ TeamCreate → Worker teammates + Reviewer/Leader subagent → TeamDelete.
 
 ### Ralph Pipeline (ralph)
 
-테스트 통과까지 자동 반복. execute → verify 루프를 최대 10회 반복.
-테스트가 실패하면 자동으로 수정 후 재시도.
+테스트 통과까지 자동 반복. execute → verify 루프를 최대 10회.
 
 ```
 init → execute → verify(실패?) → execute → verify(성공!) → commit → finalize
@@ -505,21 +639,11 @@ init → execute → verify(실패?) → execute → verify(성공!) → commit 
 
 사용: `node .vela/cli/vela-engine.js init "버그 수정" --scale ralph`
 
-### Worktree 격리 실행
-
-대규모 Execute에서 Agent Teams 소환 시 `isolation: "worktree"`를 사용하면
-각 Executor가 격리된 git worktree에서 작업하여 파일 충돌을 방지한다.
-
-```
-Agent 도구:
-  isolation: "worktree"
-  team_name: "vela-pipeline"
-  name: "executor-module-a"
-```
-
 ---
 
-## PM(Leader) 판단 기준
+## PM 승인 판단 기준
+
+PM이 Reviewer 리포트를 읽고 직접 approve/reject을 결정한다.
 
 - **APPROVE**: Reviewer 점수 20+/25, critical 0개
 - **REJECT**: critical/high 이슈 미해결

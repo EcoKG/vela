@@ -331,7 +331,7 @@ This project uses Vela for development governance.
 - To modify code: ALWAYS start with \`node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>\`
 - Follow pipeline steps in order. Do NOT use TaskCreate/TaskUpdate during pipeline execution.
 - Do NOT skip pipeline steps or create your own plans outside the pipeline.
-- Each team step (research, plan, execute) uses Agent Teams with independent Worker → Reviewer → Leader agents.
+- Each team step uses Teammate (소통 필요) or Subagent (독립 작업). Model: Haiku(탐색), Sonnet(코딩/리뷰), Opus(설계/분석).
 `);
   }
 
@@ -559,6 +559,7 @@ function validate() {
     { src: 'scripts/agents/executor.md', dst: 'agents/executor.md' },
     { src: 'scripts/agents/reviewer.md', dst: 'agents/reviewer.md' },
     { src: 'scripts/agents/leader.md', dst: 'agents/leader.md' },
+    { src: 'scripts/agents/conflict-manager.md', dst: 'agents/conflict-manager.md' },
     { src: 'templates/pipeline.json', dst: 'templates/pipeline.json' },
     { src: 'templates/config.json', dst: 'templates/config.json' }
   ];

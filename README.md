@@ -154,27 +154,53 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 
 ## 팀 메커니즘
 
-### Worker=Teams, Reviewer/Leader=Subagent
+### 모델 선택 전략
 
-Worker(작업자)는 Agent Teams teammate — 팀 내 소통/협업 가능.
-Reviewer/Leader는 Subagent — 독립 평가, 소통 불필요, 토큰 절감 (~13%).
+| 작업 유형 | 모델 | 역할 |
+|----------|------|------|
+| 파일 탐색/검색 | **Haiku** | 탐색 전용 subagent |
+| 코드 구현/리뷰 | **Sonnet** | Executor, Reviewer, Leader, Conflict Manager |
+| 설계/디버깅/분석 | **Opus** | Researcher, Planner |
 
-| 역할 | 실행 방식 | 이유 |
-|------|----------|------|
-| **PM (Team Lead)** | 메인 세션 | 전 단계 조율 |
-| **Researcher** (3명) | **Teammate** | 병렬 탐색, 서로 소통 |
-| **Planner** | **Teammate** | 팀 내 연구 결과 참조 |
-| **Executor** (소규모) | **Subagent** | 단독 작업 |
-| **Executor** (대규모) | **Teammate** | 모듈별 병렬 |
-| **Reviewer** | **Subagent** | 읽고 평가만, 소통 불필요 |
-| **Leader** | **Subagent** | 읽고 판단만, 소통 불필요 |
+### Teammate vs Subagent
 
-approval/review 파일은 team 단계(research/plan/execute)에서만 작성 가능 (GUARD 11).
+**Teammate** = 에이전트 간 소통 필요 (CrossLayer, 다중 모듈 동시 수정).
+**Subagent** = 독립 단일 작업 (리뷰, 단일 모듈, 탐색).
+
+| 조건 | 방식 | 모델 |
+|------|------|------|
+| CrossLayer/다중 파일 동시 수정 | **Teammate** | Sonnet |
+| 독립 리뷰/점검 | **Subagent** | Sonnet |
+| 단일 모듈 수정 | **Subagent** | Sonnet |
+| 파일 탐색 | **Subagent** | Haiku |
+| 설계/분석 | **Subagent** | Opus |
+
+### 팀 규칙
+
+- **팀 크기**: 3~5명 (개발 팀원 + Conflict Manager 1명)
+- **태스크 배분**: 팀원당 5~6개
+- **파일 소유권**: 각 팀원에게 담당 파일 명시 부여
+- **에이전트 MD**: 목차(TOC) 기반 로딩 — 필요한 섹션만 선택적으로 읽기
+
+### CrossLayer Development
+
+다중 계층 작업 시 Teammate + Conflict Manager + Git Worktree:
+```
+TeamCreate → frontend-dev(Sonnet) + backend-dev(Sonnet) + db-dev(Sonnet) + conflict-manager(Sonnet)
+각 팀원: isolation: "worktree" + 담당 파일 + 5~6개 태스크
+팀원 간 SendMessage로 인터페이스 조율
+Conflict Manager가 최종 병합 + 충돌 해결
+```
+
+### 리서치 — 경쟁가설 디버깅
+
+가설 생성(3~5개) → 증거 수집 → 가설 제거 → 생존 가설 검증 → 결론.
+디테일하되 과하지 않게.
 
 ### 승인 메커니즘 — 파일 기반
 
-- **Reviewer** → `review-{step}.md` (X/25 점수 + 이슈)
-- **PM(Leader)** → `approval-{step}.json` (`decision: "approve"/"reject"`)
+- **Reviewer** (Subagent, Sonnet) → `review-{step}.md` (X/25 점수 + 이슈)
+- **PM** → `approval-{step}.json` (`decision: "approve"/"reject"`)
 - 엔진 exit gate가 파일 확인 → 없으면 transition 차단
 
 ---
