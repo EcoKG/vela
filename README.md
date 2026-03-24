@@ -193,10 +193,20 @@ TeamCreate → frontend-dev(Sonnet) + backend-dev(Sonnet) + db-dev(Sonnet) + con
 Conflict Manager가 최종 병합 + 충돌 해결
 ```
 
+### Standard Pipeline 에이전트 흐름
+
+```
+TeamCreate → Research: Teammate 3명(Opus, 경쟁가설 디버깅)
+           → Plan: Subagent(Opus)
+           → Execute: Subagent(Sonnet) 또는 Teammate(CrossLayer)
+           → 각 단계: Reviewer Subagent(Sonnet) + PM approve/reject
+           → TeamDelete
+```
+
 ### 리서치 — 경쟁가설 디버깅
 
-가설 생성(3~5개) → 증거 수집 → 가설 제거 → 생존 가설 검증 → 결론.
-디테일하되 과하지 않게.
+가설 생성(3~5개) → 가설 공유(SendMessage) → 증거 수집 → 교차 검증 → 가설 제거 → 결론.
+디테일하되 과하지 않게. Teammate 간 소통으로 가설 경쟁.
 
 ### 승인 메커니즘 — 파일 기반
 
@@ -328,7 +338,7 @@ Claude: [VG-02] → 복구 테이블 참조 → vela-engine transition 실행
 ## 산출물 구조
 
 ```
-.vela/artifacts/{date}/{slug}/
+.vela/artifacts/{date}_{id}_{slug}/
 ├── meta.json, pipeline-state.json
 ├── research.md, review-research.md, approval-research.json
 ├── plan.md, review-plan.md, approval-plan.json
@@ -337,12 +347,15 @@ Claude: [VG-02] → 복구 테이블 참조 → vela-engine transition 실행
 ├── verification.md, report.md, diff.patch, trace.jsonl
 ```
 
+예: `.vela/artifacts/2026-03-24_a3f2_auth-system/`
+
 ---
 
 ## Git 형상관리
 
 - **Init**: dirty tree 차단, .gitignore 자동
 - **Branch**: `vela/<slug>-<HHMM>` (auto/prompt/none)
+- **Artifact**: `.vela/artifacts/{date}_{id}_{slug}/` (플랫 구조)
 - **Commit**: Conventional Commits + `Vela-Pipeline:` 참조
 - **Cancel**: 체크포인트 hash + 복구 안내
 
@@ -356,10 +369,11 @@ your-project/
 │   ├── hooks/          ← 10 hooks (Gate Keeper, Guard, Orchestrator, Tracker, Stop, SessionStart, Compact, SubagentStart)
 │   ├── cli/            ← vela-engine, vela-read, vela-write
 │   ├── agents/         ← vela.md, researcher, planner, executor, reviewer, conflict-manager, leader(판단가이드)
+│   ├── references/     ← interactive-ui.md, gates-and-guards.md, cli-reference.md, messages-en.md
 │   ├── cache/          ← TreeNode SQLite
 │   ├── templates/      ← pipeline.json, config.json
 │   ├── statusline.sh   ← ⛵ 하단 바
-│   └── install.js      ← 설치/검증/복구
+│   └── install.js      ← 설치/검증/복구/upgrade
 ├── .claude/
 │   ├── settings.local.json  ← 훅 + permission + agent + spinner + statusLine
 │   └── agents/vela.md       ← 기본 에이전트
@@ -367,16 +381,15 @@ your-project/
 └── (프로젝트 파일)
 ```
 
-### install.js 유효성 검증
+### install.js 명령어
 
-`node .vela/install.js` 실행 시 자동으로:
-- 필수 디렉토리/파일 → 없으면 복구
-- config.json → 깨졌으면 템플릿에서 복원
-- 레거시 파일/설정 → 정리
-- statusline.sh CRLF → LF 변환
-- .gitignore → Vela 항목 추가
-- jq → 없으면 자동 설치 시도
-- sqlite3 → 없으면 경고
+| 명령 | 설명 |
+|------|------|
+| `node .vela/install.js` | 훅 설치 + 유효성 검증 |
+| `node .vela/install.js verify` | 설치 검증만 |
+| `node .vela/install.js upgrade` | 모든 파일을 최신 버전으로 갱신 (config.json 제외) |
+| `node .vela/install.js status` | 현재 훅 상태 확인 |
+| `node .vela/install.js uninstall` | Vela 훅 제거 |
 
 ---
 
