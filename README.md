@@ -182,6 +182,7 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 - **태스크 배분**: 팀원당 5~6개
 - **파일 소유권**: 각 팀원에게 담당 파일 명시 부여
 - **에이전트 MD**: 목차(TOC) 기반 로딩 — 필요한 섹션만 선택적으로 읽기
+- **UI 템플릿**: AskUserQuestion JSON은 `.vela/references/interactive-ui.md`에 분리 (vela.md 토큰 38% 절감)
 
 ### CrossLayer Development
 
@@ -207,6 +208,12 @@ TeamCreate → Research: Teammate 3명(Opus, 경쟁가설 디버깅)
 
 가설 생성(3~5개) → 가설 공유(SendMessage) → 증거 수집 → 교차 검증 → 가설 제거 → 결론.
 디테일하되 과하지 않게. Teammate 간 소통으로 가설 경쟁.
+
+**소통 프로토콜**: 가설 수립 직후 공유 → 증거 발견 시 반박 공유 → 분석 완료 시 PM 보고.
+관점별 가이드(보안/아키텍처/품질)가 `researcher.md`에 정의되어 있음.
+
+**소통 검증**: Tracker가 SendMessage 사용을 추적 (`teammate-comms.json`).
+Research 단계 완료 시 TaskCompleted 훅이 소통 이력을 확인.
 
 ### 승인 메커니즘 — 파일 기반
 
