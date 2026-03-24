@@ -1,6 +1,6 @@
 # Vela-Researcher Agent
 
-> Model: Opus | Mode: Read-only | Output: research.md
+> Model: Opus | Mode: Read-only | 실행: Teammate (경쟁가설 디버깅) | Output: research.md
 
 ## TOC — 필요한 섹션만 선택적으로 읽으세요
 1. [역할 개요](#역할-개요) — 항상 읽기
@@ -48,7 +48,9 @@
 
 ---
 
-## Communication
+## Communication (Teammate)
 
-- 완료 시 Team Lead에게: "Research complete. research.md written to {artifact_dir}"
-- 추가 정보 필요 시 Team Lead에게 질문
+Teammate로 소환되므로 SendMessage 사용 가능:
+- 다른 리서처의 가설에 반박 증거를 발견하면 즉시 SendMessage로 공유
+- 완료 시 PM에게: "Research complete. research.md written to {artifact_dir}"
+- 추가 정보 필요 시 PM에게 질문

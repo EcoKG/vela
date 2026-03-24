@@ -11,7 +11,7 @@
  * 2. Show allowed next actions
  * 3. Detect crashed/stale pipelines and offer recovery
  * 4. Display session health on first prompt
- * 5. Inject team context during execute step (Leader/Executor roles)
+ * 5. Inject team context during team steps (Teammate/Subagent roles)
  */
 
 const fs = require('fs');
@@ -108,10 +108,10 @@ async function main() {
     // Show team step info (Agent Teams)
     if (stepDef && stepDef.team) {
       output.push(`│`);
-      output.push(`│ 🌟 Agent Teams ───────────────────`);
+      output.push(`│ 🌟 Team Step ────────────────────`);
       output.push(`│ │ Worker: ${stepDef.team.worker_role}`);
-      output.push(`│ │ Reviewer: independent subagent`);
-      output.push(`│ │ Leader: independent agent`);
+      output.push(`│ │ Reviewer: subagent (Sonnet)`);
+      output.push(`│ │ Approval: PM direct judgment`);
       // Check for approval file
       if (state._artifactDir) {
         const approvalFile = `approval-${state.current_step}.json`;

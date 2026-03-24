@@ -81,9 +81,9 @@
         },
         {
           "name": "team-mechanism-used",
-          "description": "Execute 단계에서 Executor/Leader 팀 메커니즘을 사용했는가",
+          "description": "Execute 단계에서 Executor + Reviewer + PM 승인 메커니즘을 사용했는가",
           "type": "output_contains",
-          "check": "team-dispatch|executor|leader"
+          "check": "team-dispatch|executor|reviewer|approval"
         },
         {
           "name": "code-modified-correctly",

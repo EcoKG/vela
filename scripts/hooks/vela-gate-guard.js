@@ -141,7 +141,7 @@ async function main() {
 
       // ─── GUARD 11: approval/review files — team step only ───
       // These files should only be written during steps with team configuration
-      // (research, plan, execute) where Leader/Reviewer subagents operate.
+      // (research, plan, execute) where Reviewer subagent operates and PM makes approval decisions.
       // Note: session_id check was removed because Agent-tool subagents share
       // the parent's session_id, making PM vs subagent distinction impossible.
       if (protectedFile.startsWith('approval-') || protectedFile.startsWith('review-')) {

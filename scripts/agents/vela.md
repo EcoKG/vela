@@ -190,8 +190,8 @@ SessionStart 훅이 이전 파이프라인을 감지하면 AskUserQuestion으로
         "description": "독립 컨텍스트에서 집중 분석. 편향 없는 리포트."
       },
       {
-        "label": "Subagent 3명 병렬 (Opus)",
-        "description": "보안/아키텍처/품질 3관점 동시 분석. 가장 철저."
+        "label": "Teammate 3명 병렬 (Opus)",
+        "description": "경쟁가설 디버깅. 3명이 서로 가설을 반박/검증. 가장 철저."
       }
     ],
     "multiSelect": false
@@ -584,39 +584,42 @@ Agent 도구:
 ## Standard Pipeline (large) — 에이전트 운영 흐름
 
 ```
-[Research] — Subagent (Opus)
-1. Researcher subagent 3명 병렬 소환 (Opus, 독립 분석):
+1. TeamCreate: team_name "vela-pipeline"
+
+[Research] — Teammate (Opus) ← 경쟁가설 디버깅은 소통 필수
+2. Researcher teammate 3명 소환 (Opus, team_name "vela-pipeline"):
    - "security-researcher" → 보안 관점
    - "architecture-researcher" → 아키텍처 관점
    - "quality-researcher" → 품질/성능 관점
-   ※ 각각 경쟁가설 디버깅 적용
-2. PM이 3개 리포트를 종합하여 research.md 작성
-3. Reviewer subagent (Sonnet) → review-research.md
-4. PM이 review 기반으로 approve/reject 판단
+   ※ SendMessage로 서로의 가설을 반박/검증 (경쟁가설 디버깅)
+3. PM이 3개 리포트를 종합하여 research.md 작성
+4. Reviewer subagent (Sonnet) → review-research.md
+5. PM이 review 기반으로 approve/reject 판단
 
-[Plan] — Subagent (Opus)
-5. Planner subagent (Opus) → plan.md 작성
-6. Reviewer subagent (Sonnet) → review-plan.md
-7. PM이 review 기반으로 approve/reject 판단
+[Plan] — Subagent (Opus) ← 독립 작업, 소통 불필요
+6. Planner subagent (Opus) → plan.md 작성
+7. Reviewer subagent (Sonnet) → review-plan.md
+8. PM이 review 기반으로 approve/reject 판단
 
 [Execute — 단일 모듈] — Subagent (Sonnet)
-8. Executor subagent (Sonnet) → 코드 구현
-9. Reviewer subagent (Sonnet) → review-execute.md
-10. PM이 review 기반으로 approve/reject 판단
+9. Executor subagent (Sonnet) → 코드 구현
+10. Reviewer subagent (Sonnet) → review-execute.md
+11. PM이 review 기반으로 approve/reject 판단
 
 [Execute — CrossLayer/다중 모듈] — Teammate (Sonnet)
-8. TeamCreate: team_name "vela-pipeline"
-9. Teammate 3~5명 소환 (Sonnet, worktree 격리):
+9. Teammate 3~5명 소환 (Sonnet, team_name "vela-pipeline", worktree 격리):
    - 각 팀원에게 담당 파일 + 5~6개 태스크 할당
    - Conflict Manager teammate 포함
    - 팀원 간 SendMessage로 인터페이스 조율
 10. Reviewer subagent (Sonnet) → review-execute.md
 11. PM이 review 기반으로 approve/reject 판단
-12. TeamDelete
+
+12. TeamDelete (파이프라인 완료 시)
 ```
 
-**TeamCreate/TeamDelete는 Teammate 사용 시에만 호출한다.**
-Subagent만 사용하는 단계에서는 TeamCreate하지 않는다.
+**TeamCreate**: Standard pipeline 시작 시 1회 호출.
+**TeamDelete**: 파이프라인 완료(finalize) 시 호출.
+Teammate가 없는 단계(Plan, Execute 단일)에서도 팀은 유지되며, Subagent는 팀과 무관하게 독립 실행.
 
 ### Quick Pipeline (medium)
 
@@ -717,8 +720,8 @@ node .vela/cli/vela-engine.js cancel
 
 ## Teammate 팀 정리
 
-TeamCreate를 사용한 경우에만 (CrossLayer/다중 모듈 execute):
+Standard pipeline은 Research에서 TeamCreate, finalize에서 TeamDelete:
 1. 모든 팀원에게 shutdown_request 전송
 2. TeamDelete 호출
 
-Subagent만 사용한 경우 팀 정리가 필요 없다.
+Quick/Trivial 파이프라인은 Subagent만 사용하므로 팀 정리 불필요.

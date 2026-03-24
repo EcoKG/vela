@@ -98,7 +98,7 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s
 깊은 분석 요청 시 AskUserQuestion으로 방식 선택:
 - **Solo** — 직접 분석, 가장 빠름
 - **Subagent** (Opus) — 독립 리서처 1명
-- **Subagent 3명 병렬** (Opus) — 보안/아키텍처/품질 관점
+- **Teammate 3명** (Opus) — 경쟁가설 디버깅, 서로 가설 반박/검증
 
 분석 후 수정 필요 시 → 파이프라인 시작 / 추가 조사 / 완료 선택
 
@@ -212,7 +212,7 @@ Conflict Manager가 최종 병합 + 충돌 해결
 | 단계 | 선택 UI |
 |------|---------|
 | `/vela` 호출 | 파이프라인 시작 / 환경 구축만 |
-| Research 방식 | Solo / Subagent / Subagent 3명 병렬 |
+| Research 방식 | Solo / Subagent / Teammate 3명 (경쟁가설) |
 | 파이프라인 규모 | Small / Medium / Large |
 | Research 후 | 파이프라인 시작 / 추가 조사 / 완료 |
 | 기존 Research 활용 | 기존 활용 / 보충 / 처음부터 |
@@ -354,7 +354,7 @@ your-project/
 ├── .vela/
 │   ├── hooks/          ← 10 hooks (Gate Keeper, Guard, Orchestrator, Tracker, Stop, SessionStart, Compact, SubagentStart)
 │   ├── cli/            ← vela-engine, vela-read, vela-write
-│   ├── agents/         ← vela.md, researcher, planner, executor, reviewer, leader
+│   ├── agents/         ← vela.md, researcher, planner, executor, reviewer, conflict-manager, leader(판단가이드)
 │   ├── cache/          ← TreeNode SQLite
 │   ├── templates/      ← pipeline.json, config.json
 │   ├── statusline.sh   ← ⛵ 하단 바

@@ -66,7 +66,7 @@ Teammate로 소환된 경우, 프롬프트에 **담당 파일**이 명시된다.
 - 완료 시: "Implementation complete. All tests passing."
 
 **Teammate로 소환된 경우:**
-- 완료 시 Team Lead에게 SendMessage
+- 완료 시 PM에게 SendMessage
 - 다른 팀원과 인터페이스 조율 시 SendMessage 활용
 - 예: "API 응답 형식 변경됨. UserDTO에 email 필드 추가. 확인 바람"
-- Leader가 reject 시 피드백 받아 수정 후 재전송
+- PM이 reject 시 피드백 받아 수정 후 재전송

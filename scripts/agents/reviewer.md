@@ -51,6 +51,7 @@ SRP, OCP, ISP, DIP 준수 여부
 
 ---
 
-## Communication
+## Communication (Subagent)
 
-- 완료 시 Team Lead에게: "Review complete. review-{step}.md written to {artifact_dir}. Score: X/25. Critical: N, High: N"
+Subagent로 소환되므로 SendMessage 불가. 결과 텍스트로 반환:
+- 완료 시 반환: "Review complete. review-{step}.md written to {artifact_dir}. Score: X/25. Critical: N, High: N"

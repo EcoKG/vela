@@ -90,7 +90,7 @@ init이 안 되어 있으면 자동으로 init을 먼저 수행한 후 파이프
 
 5. **파이프라인 진행**
    `.vela/agents/vela.md`의 지시사항에 따라 파이프라인 단계를 순서대로 진행한다.
-   - standard: Teammate(소통 필요) 또는 Subagent(독립 작업) + Reviewer(Subagent)
+   - standard: Research=Teammate(Opus) + Plan=Subagent(Opus) + Execute=Subagent/Teammate(Sonnet) + Reviewer(Subagent)
    - quick: Subagent 기반 + Reviewer(Subagent)
    - trivial: PM 직접 수행
 
@@ -293,12 +293,12 @@ Agent 도구:
 ```
 
 에이전트 지시사항 (`.vela/agents/`):
-- `researcher.md` (Opus) — 경쟁가설 디버깅, research.md 작성
-- `planner.md` (Opus) — 아키텍처 설계, plan.md 작성
-- `executor.md` (Sonnet) — TDD 기반 코드 구현
-- `reviewer.md` (Sonnet) — 독립 품질 점검, review-{step}.md 작성
-- `leader.md` (Sonnet) — 판단, approval-{step}.json 작성
-- `conflict-manager.md` (Sonnet) — git 충돌 관리, 병합
+- `researcher.md` (Opus, Teammate) — 경쟁가설 디버깅, research.md 작성
+- `planner.md` (Opus, Subagent) — 아키텍처 설계, plan.md 작성
+- `executor.md` (Sonnet, Subagent/Teammate) — TDD 기반 코드 구현
+- `reviewer.md` (Sonnet, Subagent) — 독립 품질 점검, review-{step}.md 작성
+- `leader.md` — PM 승인 판단 가이드 (별도 에이전트 아님)
+- `conflict-manager.md` (Sonnet, Teammate) — git 충돌 관리, 병합
 
 #### 승인 메커니즘 — 파일 기반
 

@@ -32,6 +32,6 @@ init이 안 되어 있으면 자동으로 init을 먼저 수행한다.
 
 5. **파이프라인 진행**
    `.vela/agents/vela.md`의 지시사항에 따라 파이프라인 단계를 순서대로 진행한다.
-   - standard: Subagent 기반 + CrossLayer 시 Teammate + Reviewer(Subagent)
+   - standard: Research=Teammate(Opus) + Plan=Subagent(Opus) + Execute=Subagent/Teammate(Sonnet)
    - quick: Subagent 기반 + Reviewer(Subagent)
    - trivial: PM 직접 수행

@@ -53,7 +53,8 @@ research.md를 기반으로 구체적 구현 계획(plan.md)을 작성하는 설
 
 ---
 
-## Communication
+## Communication (Subagent)
 
-- 완료 시 Team Lead에게: "Plan complete. plan.md written to {artifact_dir}"
-- Leader가 reject 시 피드백을 받아 plan.md 수정
+Subagent로 소환되므로 SendMessage 불가. 결과 텍스트로 반환:
+- 완료 시 반환: "Plan complete. plan.md written to {artifact_dir}"
+- PM이 reject 시 새 Subagent로 재소환되어 피드백 반영

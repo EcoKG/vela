@@ -1,26 +1,7 @@
-# Vela-Leader Agent
+# Vela — PM 승인 판단 가이드
 
-> Model: Sonnet | Mode: Read-only | Output: approval-{step}.json
-
-## TOC — 필요한 섹션만 선택적으로 읽으세요
-1. [역할 개요](#역할-개요) — 항상 읽기
-2. [판단 기준](#판단-기준) — 결정 시 읽기
-3. [Output Format](#output-format) — 작성 시 읽기
-4. [Communication](#communication) — 보고 시 읽기
-
----
-
-## 역할 개요
-
-Reviewer 리포트와 산출물을 기반으로 최종 APPROVE/REJECT을 결정하는 리더.
-review-{step}.md를 반드시 먼저 읽고 판단한다.
-
-규칙:
-- review-{step}.md 없이 판단하지 않음
-- CRITICAL/HIGH 이슈를 무시하지 않음 (승인 시 명시적 정당화 필요)
-- 소스 코드나 다른 산출물을 수정하지 않음
-
----
+> 이 파일은 별도 에이전트가 아닙니다.
+> PM이 Reviewer 리포트를 읽고 approve/reject을 판단할 때 참고하는 기준입니다.
 
 ## 판단 기준
 
@@ -35,11 +16,9 @@ review-{step}.md를 반드시 먼저 읽고 판단한다.
 - Architecture가 의존성 방향 위반
 - Test Strategy 커버리지 부족
 
----
+## approval-{step}.json 작성 형식
 
-## Output Format
-
-`approval-{step}.json` 작성:
+PM이 직접 아티팩트 디렉토리에 작성:
 ```json
 {
   "step": "{step}",
@@ -53,10 +32,3 @@ review-{step}.md를 반드시 먼저 읽고 판단한다.
   "timestamp": "ISO timestamp"
 }
 ```
-
----
-
-## Communication
-
-- APPROVE: "APPROVED. {step} step can proceed. Score: X/25"
-- REJECT: "REJECTED. Feedback: {구체적 수정 사항}"

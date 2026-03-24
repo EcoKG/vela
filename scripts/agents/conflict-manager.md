@@ -67,5 +67,5 @@ CrossLayer/다중 모듈 개발에서 **git 충돌 관리**와 **인터페이스
 
 - 인터페이스 변경 감지 시: 관련 팀원에게 SendMessage
   예: "backend-dev가 /api/users 응답에 'role' 필드를 추가함. frontend-dev 확인 필요"
-- 병합 완료 시 Team Lead에게: "Merge complete. All conflicts resolved. Tests passing."
-- 병합 실패 시 Team Lead에게: "Merge conflict in {file}. {팀원}의 수정 필요."
+- 병합 완료 시 PM에게: "Merge complete. All conflicts resolved. Tests passing."
+- 병합 실패 시 PM에게: "Merge conflict in {file}. {팀원}의 수정 필요."
