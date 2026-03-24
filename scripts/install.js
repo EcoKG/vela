@@ -14,6 +14,7 @@
  * Usage:
  *   node install.js                    — Install hooks
  *   node install.js verify             — Verify installation
+ *   node install.js upgrade            — Update all Vela files to latest version
  *   node install.js uninstall          — Remove all Vela hooks
  *   node install.js status             — Show current hook status
  */
@@ -145,6 +146,7 @@ switch (command) {
   case 'verify': verify(); break;
   case 'uninstall': uninstall(); break;
   case 'status': status(); break;
+  case 'upgrade': upgrade(); break;
   default:
     console.log(JSON.stringify({ ok: false, error: `Unknown command: ${command}` }));
     process.exit(1);
@@ -512,6 +514,98 @@ function status() {
     vela_permissions: permissions,
     permission_count: permissions.deny.length + permissions.allow.length,
     settings_path: SETTINGS_PATH
+  }, null, 2));
+}
+
+// ─── Upgrade ───
+
+function upgrade() {
+  const velaDir = path.join(PROJECT_ROOT, '.vela');
+  if (!fs.existsSync(velaDir)) {
+    console.log(JSON.stringify({ ok: false, error: 'Vela not installed. Run install first.' }));
+    process.exit(1);
+  }
+
+  const skillBase = path.resolve(__dirname, '..');
+  const results = { updated: [], added: [], skipped: [], errors: [] };
+
+  // Same file list as validate()
+  const upgradeFiles = [
+    { src: 'scripts/hooks/vela-gate-keeper.js', dst: 'hooks/vela-gate-keeper.js' },
+    { src: 'scripts/hooks/vela-gate-guard.js', dst: 'hooks/vela-gate-guard.js' },
+    { src: 'scripts/hooks/vela-orchestrator.js', dst: 'hooks/vela-orchestrator.js' },
+    { src: 'scripts/hooks/vela-tracker.js', dst: 'hooks/vela-tracker.js' },
+    { src: 'scripts/hooks/vela-stop.js', dst: 'hooks/vela-stop.js' },
+    { src: 'scripts/hooks/vela-session-start.js', dst: 'hooks/vela-session-start.js' },
+    { src: 'scripts/hooks/vela-compact.js', dst: 'hooks/vela-compact.js' },
+    { src: 'scripts/hooks/vela-subagent-start.js', dst: 'hooks/vela-subagent-start.js' },
+    { src: 'scripts/hooks/vela-task-completed.js', dst: 'hooks/vela-task-completed.js' },
+    { src: 'scripts/hooks/shared/constants.js', dst: 'hooks/shared/constants.js' },
+    { src: 'scripts/hooks/shared/pipeline.js', dst: 'hooks/shared/pipeline.js' },
+    { src: 'scripts/cli/vela-engine.js', dst: 'cli/vela-engine.js' },
+    { src: 'scripts/cli/vela-read.js', dst: 'cli/vela-read.js' },
+    { src: 'scripts/cli/vela-write.js', dst: 'cli/vela-write.js' },
+    { src: 'scripts/cache/treenode.js', dst: 'cache/treenode.js' },
+    { src: 'scripts/statusline.sh', dst: 'statusline.sh' },
+    { src: 'scripts/agents/vela.md', dst: 'agents/vela.md' },
+    { src: 'scripts/agents/researcher.md', dst: 'agents/researcher.md' },
+    { src: 'scripts/agents/planner.md', dst: 'agents/planner.md' },
+    { src: 'scripts/agents/executor.md', dst: 'agents/executor.md' },
+    { src: 'scripts/agents/reviewer.md', dst: 'agents/reviewer.md' },
+    { src: 'scripts/agents/leader.md', dst: 'agents/leader.md' },
+    { src: 'scripts/agents/conflict-manager.md', dst: 'agents/conflict-manager.md' },
+    { src: 'templates/pipeline.json', dst: 'templates/pipeline.json' },
+  ];
+
+  // Do NOT overwrite config.json (user may have customized it)
+  // Do NOT overwrite install.js itself
+
+  for (const f of upgradeFiles) {
+    const srcPath = path.join(skillBase, f.src);
+    const dstPath = path.join(velaDir, f.dst);
+
+    if (!fs.existsSync(srcPath)) {
+      results.skipped.push(f.dst);
+      continue;
+    }
+
+    try {
+      const dstDir = path.dirname(dstPath);
+      if (!fs.existsSync(dstDir)) fs.mkdirSync(dstDir, { recursive: true });
+
+      const isNew = !fs.existsSync(dstPath);
+      fs.copyFileSync(srcPath, dstPath);
+
+      if (isNew) {
+        results.added.push(f.dst);
+      } else {
+        results.updated.push(f.dst);
+      }
+    } catch (e) {
+      results.errors.push(`${f.dst}: ${e.message}`);
+    }
+  }
+
+  // Also update the PM agent in .claude/agents/
+  const pmSrc = path.join(velaDir, 'agents', 'vela.md');
+  const pmDst = path.join(PROJECT_ROOT, '.claude', 'agents', 'vela.md');
+  if (fs.existsSync(pmSrc) && fs.existsSync(path.dirname(pmDst))) {
+    try {
+      fs.copyFileSync(pmSrc, pmDst);
+      results.updated.push('.claude/agents/vela.md');
+    } catch (e) {
+      results.errors.push(`.claude/agents/vela.md: ${e.message}`);
+    }
+  }
+
+  console.log(JSON.stringify({
+    ok: results.errors.length === 0,
+    command: 'upgrade',
+    updated: results.updated.length,
+    added: results.added.length,
+    skipped: results.skipped.length,
+    errors: results.errors,
+    details: results
   }, null, 2));
 }
 
