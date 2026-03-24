@@ -17,12 +17,33 @@ const htmlOutput = args.indexOf('--html') >= 0 ? args[args.indexOf('--html') + 1
 // Collect all pipelines
 const pipelines = [];
 if (fs.existsSync(ARTIFACTS_DIR)) {
-  const dateDirs = fs.readdirSync(ARTIFACTS_DIR).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
-  for (const dd of dateDirs) {
+  const allDirs = fs.readdirSync(ARTIFACTS_DIR).sort().reverse();
+
+  // Flat structure: {date}_{id}_{slug}/
+  for (const dir of allDirs.filter(d => /^\d{4}-\d{2}-\d{2}_/.test(d))) {
+    const dirPath = path.join(ARTIFACTS_DIR, dir);
+    try { if (!fs.statSync(dirPath).isDirectory()) continue; } catch { continue; }
+    const sp = path.join(dirPath, 'pipeline-state.json');
+    if (!fs.existsSync(sp)) continue;
+    try {
+      const state = JSON.parse(fs.readFileSync(sp, 'utf-8'));
+      const artifacts = fs.readdirSync(dirPath).filter(f => f.endsWith('.md') || f.endsWith('.json') || f.endsWith('.patch'));
+      const date = dir.split('_')[0];
+      pipelines.push({
+        date, slug: dir, status: state.status, type: state.pipeline_type,
+        request: state.request, step: state.current_step,
+        completed: (state.completed_steps || []).length, total: (state.steps || []).length,
+        created: state.created_at, updated: state.updated_at,
+        artifacts, git: state.git || null
+      });
+    } catch (e) {}
+  }
+
+  // Backward compat: nested {date}/{slug}/
+  for (const dd of allDirs.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
     const dp = path.join(ARTIFACTS_DIR, dd);
-    const slugs = fs.readdirSync(dp).filter(d => {
-      try { return fs.statSync(path.join(dp, d)).isDirectory(); } catch { return false; }
-    });
+    let slugs;
+    try { slugs = fs.readdirSync(dp).filter(d => fs.statSync(path.join(dp, d)).isDirectory()); } catch { continue; }
     for (const s of slugs) {
       const sp = path.join(dp, s, 'pipeline-state.json');
       if (!fs.existsSync(sp)) continue;
@@ -34,7 +55,7 @@ if (fs.existsSync(ARTIFACTS_DIR)) {
           request: state.request, step: state.current_step,
           completed: (state.completed_steps || []).length, total: (state.steps || []).length,
           created: state.created_at, updated: state.updated_at,
-          artifacts: artifacts, git: state.git || null
+          artifacts, git: state.git || null
         });
       } catch (e) {}
     }

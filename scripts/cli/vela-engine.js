@@ -105,12 +105,12 @@ function cmdInit() {
 
   const pipelineType = scaleToPipeline(scale);
 
-  // Create artifact directory
+  // Create artifact directory: {date}_{id}_{slug}
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
-  const timeStr = now.toTimeString().substring(0, 5).replace(':', '');
+  const uid = Math.random().toString(36).substring(2, 6);
   const slug = slugify(request);
-  const artifactDir = path.join(ARTIFACTS_DIR, dateStr, `${slug}-${timeStr}`);
+  const artifactDir = path.join(ARTIFACTS_DIR, `${dateStr}_${uid}_${slug}`);
 
   fs.mkdirSync(artifactDir, { recursive: true });
 
@@ -621,32 +621,46 @@ function cmdHistory() {
 
   const pipelines = [];
   try {
-    const dateDirs = fs.readdirSync(ARTIFACTS_DIR)
-      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().reverse();
+    const allDirs = fs.readdirSync(ARTIFACTS_DIR).sort().reverse();
 
-    for (const dateDir of dateDirs) {
+    // Flat: {date}_{id}_{slug}/
+    for (const dir of allDirs.filter(d => /^\d{4}-\d{2}-\d{2}_/.test(d))) {
+      const dirPath = path.join(ARTIFACTS_DIR, dir);
+      try { if (!fs.statSync(dirPath).isDirectory()) continue; } catch { continue; }
+      const statePath = path.join(dirPath, 'pipeline-state.json');
+      if (!fs.existsSync(statePath)) continue;
+      try {
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        pipelines.push({
+          date: dir.split('_')[0], slug: dir,
+          status: state.status, type: state.pipeline_type,
+          request: (state.request || '').substring(0, 60),
+          step: state.current_step,
+          steps_completed: (state.completed_steps || []).length,
+          steps_total: (state.steps || []).length,
+          created: state.created_at, updated: state.updated_at
+        });
+      } catch (e) {}
+    }
+
+    // Backward compat: {date}/{slug}/
+    for (const dateDir of allDirs.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
       const datePath = path.join(ARTIFACTS_DIR, dateDir);
-      const slugDirs = fs.readdirSync(datePath).filter(d => {
-        try { return fs.statSync(path.join(datePath, d)).isDirectory(); }
-        catch { return false; }
-      }).sort().reverse();
-
+      let slugDirs;
+      try { slugDirs = fs.readdirSync(datePath).filter(d => fs.statSync(path.join(datePath, d)).isDirectory()); } catch { continue; }
       for (const slugDir of slugDirs) {
         const statePath = path.join(datePath, slugDir, 'pipeline-state.json');
         if (!fs.existsSync(statePath)) continue;
         try {
           const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
           pipelines.push({
-            date: dateDir,
-            slug: slugDir,
-            status: state.status,
-            type: state.pipeline_type,
+            date: dateDir, slug: slugDir,
+            status: state.status, type: state.pipeline_type,
             request: (state.request || '').substring(0, 60),
             step: state.current_step,
             steps_completed: (state.completed_steps || []).length,
             steps_total: (state.steps || []).length,
-            created: state.created_at,
-            updated: state.updated_at
+            created: state.created_at, updated: state.updated_at
           });
         } catch (e) {}
       }
@@ -669,32 +683,38 @@ function findActiveState() {
   if (!fs.existsSync(ARTIFACTS_DIR)) return null;
 
   try {
-    const dateDirs = fs.readdirSync(ARTIFACTS_DIR)
-      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))
-      .sort().reverse();
+    const allDirs = fs.readdirSync(ARTIFACTS_DIR).sort().reverse();
 
-    for (const dateDir of dateDirs) {
+    // Flat: {date}_{id}_{slug}/
+    for (const dir of allDirs.filter(d => /^\d{4}-\d{2}-\d{2}_/.test(d))) {
+      const dirPath = path.join(ARTIFACTS_DIR, dir);
+      try { if (!fs.statSync(dirPath).isDirectory()) continue; } catch { continue; }
+      const statePath = path.join(dirPath, 'pipeline-state.json');
+      if (!fs.existsSync(statePath)) continue;
+      try {
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        if (state.status === 'completed' || state.status === 'cancelled') continue;
+        state._path = statePath;
+        state._artifactDir = dirPath;
+        return state;
+      } catch (e) { continue; }
+    }
+
+    // Backward compat: {date}/{slug}/
+    for (const dateDir of allDirs.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
       const datePath = path.join(ARTIFACTS_DIR, dateDir);
-      const slugDirs = fs.readdirSync(datePath)
-        .filter(d => {
-          try { return fs.statSync(path.join(datePath, d)).isDirectory(); }
-          catch { return false; }
-        })
-        .sort().reverse();
-
+      let slugDirs;
+      try { slugDirs = fs.readdirSync(datePath).filter(d => fs.statSync(path.join(datePath, d)).isDirectory()); } catch { continue; }
       for (const slugDir of slugDirs) {
         const statePath = path.join(datePath, slugDir, 'pipeline-state.json');
         if (!fs.existsSync(statePath)) continue;
-
         try {
           const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
           if (state.status === 'completed' || state.status === 'cancelled') continue;
           state._path = statePath;
           state._artifactDir = path.join(datePath, slugDir);
           return state;
-        } catch (e) {
-          continue;
-        }
+        } catch (e) { continue; }
       }
     }
   } catch (e) {}
@@ -949,48 +969,39 @@ function cleanupCancelledArtifacts(hoursOld) {
   const cutoff = Date.now() - (hoursOld * 60 * 60 * 1000);
   let cleaned = 0;
 
+  function tryCleanDir(dirPath) {
+    const statePath = path.join(dirPath, 'pipeline-state.json');
+    if (!fs.existsSync(statePath)) return;
+    try {
+      const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+      if (state.status !== 'cancelled') return;
+      const mtime = fs.statSync(statePath).mtimeMs;
+      if (mtime > cutoff) return;
+      fs.rmSync(dirPath, { recursive: true, force: true });
+      cleaned++;
+    } catch (e) {}
+  }
+
   try {
-    const dateDirs = fs.readdirSync(ARTIFACTS_DIR)
-      .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    const allDirs = fs.readdirSync(ARTIFACTS_DIR);
 
-    for (const dateDir of dateDirs) {
+    // Flat: {date}_{id}_{slug}/
+    for (const dir of allDirs.filter(d => /^\d{4}-\d{2}-\d{2}_/.test(d))) {
+      const dirPath = path.join(ARTIFACTS_DIR, dir);
+      try { if (!fs.statSync(dirPath).isDirectory()) continue; } catch { continue; }
+      tryCleanDir(dirPath);
+    }
+
+    // Backward compat: {date}/{slug}/
+    for (const dateDir of allDirs.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
       const datePath = path.join(ARTIFACTS_DIR, dateDir);
-      const slugDirs = fs.readdirSync(datePath).filter(d => {
-        try { return fs.statSync(path.join(datePath, d)).isDirectory(); }
-        catch { return false; }
-      });
-
+      let slugDirs;
+      try { slugDirs = fs.readdirSync(datePath).filter(d => fs.statSync(path.join(datePath, d)).isDirectory()); } catch { continue; }
       for (const slugDir of slugDirs) {
-        const statePath = path.join(datePath, slugDir, 'pipeline-state.json');
-        if (!fs.existsSync(statePath)) continue;
-
-        try {
-          const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
-
-          // Only clean cancelled (never completed — those have reports)
-          if (state.status !== 'cancelled') continue;
-
-          // Check age by file mtime
-          const mtime = fs.statSync(statePath).mtimeMs;
-          if (mtime > cutoff) continue;
-
-          // Safe to delete
-          const dirToRemove = path.join(datePath, slugDir);
-          fs.rmSync(dirToRemove, { recursive: true, force: true });
-          cleaned++;
-        } catch (e) {
-          // Skip on any error — don't corrupt other state
-          continue;
-        }
+        tryCleanDir(path.join(datePath, slugDir));
       }
-
-      // Clean up empty date directories
-      try {
-        const remaining = fs.readdirSync(datePath);
-        if (remaining.length === 0) {
-          fs.rmdirSync(datePath);
-        }
-      } catch (e) {}
+      // Clean empty date dirs
+      try { if (fs.readdirSync(datePath).length === 0) fs.rmdirSync(datePath); } catch (e) {}
     }
   } catch (e) {}
 

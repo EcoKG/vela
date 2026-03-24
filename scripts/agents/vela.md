@@ -109,7 +109,7 @@ SessionStart 훅이 이전 파이프라인을 감지하면 AskUserQuestion으로
 AskUserQuestion으로 다음 행동을 묻는다: 파이프라인 시작 / 추가 조사 / 완료
 
 #### "파이프라인 시작" 선택 시:
-1. 현재 분석 결과를 `.vela/artifacts/{date}/explore-{slug}/research.md`에 저장
+1. 현재 분석 결과를 `.vela/artifacts/{date}_{id}_{slug}/research.md`에 저장
 2. AskUserQuestion으로 파이프라인 규모 선택
 3. `vela-engine init` 실행
 4. research 단계에서 기존 리서치를 활용할지 묻는다: 기존 활용 / 보충 / 처음부터

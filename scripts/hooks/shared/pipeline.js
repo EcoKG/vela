@@ -15,6 +15,36 @@ function findActivePipeline(velaDir) {
   if (!fs.existsSync(artifactsDir)) return null;
 
   try {
+    // Flat structure: artifacts/{date}_{id}_{slug}/pipeline-state.json
+    const dirs = fs.readdirSync(artifactsDir)
+      .filter(d => /^\d{4}-\d{2}-\d{2}_/.test(d) && fs.statSync(path.join(artifactsDir, d)).isDirectory())
+      .sort()
+      .reverse();
+
+    for (const dir of dirs) {
+      const dirPath = path.join(artifactsDir, dir);
+      const statePath = path.join(dirPath, 'pipeline-state.json');
+      if (!fs.existsSync(statePath)) continue;
+
+      try {
+        const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+        if (state.status === 'completed' || state.status === 'cancelled') continue;
+
+        // Mark stale if untouched for 24 hours
+        const mtime = fs.statSync(statePath).mtimeMs;
+        if (Date.now() - mtime > 24 * 60 * 60 * 1000) {
+          state._stale = true;
+        }
+
+        state._path = statePath;
+        state._artifactDir = dirPath;
+        return state;
+      } catch (e) {
+        continue;
+      }
+    }
+
+    // Backward compatibility: nested structure artifacts/{date}/{slug}/
     const dateDirs = fs.readdirSync(artifactsDir)
       .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))
       .sort()
@@ -35,7 +65,6 @@ function findActivePipeline(velaDir) {
           const state = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
           if (state.status === 'completed' || state.status === 'cancelled') continue;
 
-          // Mark stale if untouched for 24 hours
           const mtime = fs.statSync(statePath).mtimeMs;
           if (Date.now() - mtime > 24 * 60 * 60 * 1000) {
             state._stale = true;
