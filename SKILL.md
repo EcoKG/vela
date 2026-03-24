@@ -181,12 +181,12 @@ init이 안 되어 있으면 자동으로 init을 먼저 수행한 후 파이프
 | 단계 | 모드 | 팀 | 설명 |
 |------|------|-----|------|
 | init | read | — | 초기화, git 상태 스냅샷, dirty tree 체크 |
-| research | read | Researcher → Leader | 프로젝트 분석, TreeNode 캐싱, Leader 검증 |
-| plan | write | Planner → Leader | 구현 계획 작성, Leader 검증 |
+| research | read | Researcher → Reviewer → PM 판단 | 프로젝트 분석, TreeNode 캐싱 |
+| plan | write | Planner → Reviewer → PM 판단 | 구현 계획 작성 |
 | plan-check | read | — | 계획 검증 (plan-check.md 생성) |
 | checkpoint | read | — | 사용자 승인 대기 |
 | **branch** | read | — | feature 브랜치 생성 (git) |
-| execute | readwrite | Executor → Leader | 구현 (팀 실행), Leader 승인 |
+| execute | readwrite | Executor/Teammate → Reviewer → PM 판단 | 구현 |
 | verify | read | — | 독립 검증 |
 | **commit** | read | — | 변경사항 원자적 커밋 (git) |
 | finalize | write | — | 보고서 생성, 선택적 PR |
@@ -261,7 +261,7 @@ node .vela/cli/vela-engine.js state
 node .vela/cli/vela-engine.js sub-transition
 ```
 
-### 3단계 검증 — Agent Teams 기반
+### 3단계 검증 — Subagent/Teammate 기반
 
 Vela는 Claude Code의 **Agent/Subagent/Teams**를 작업 유형에 따라 구분하여 소환한다.
 
@@ -396,7 +396,7 @@ node .vela/cli/vela-engine.js commit --message "custom message"
 | 작업 유형 | 모델 | 역할 |
 |----------|------|------|
 | 파일 탐색/검색 | **Haiku** | 탐색 전용 subagent |
-| 코드 구현/리뷰 | **Sonnet** | Executor, Reviewer, Leader, Conflict Manager |
+| 코드 구현/리뷰 | **Sonnet** | Executor, Reviewer, Conflict Manager |
 | 설계/디버깅/분석 | **Opus** | Researcher, Planner |
 
 ## Teammate vs Subagent 구분

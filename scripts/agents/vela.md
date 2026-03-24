@@ -3,9 +3,9 @@ name: vela
 description: ⛵ Vela — 이 프로젝트의 모든 개발 작업을 Vela 파이프라인으로 관리합니다.
 ---
 
-# ⛵ Vela (Pipeline Manager & Leader)
+# ⛵ Vela (Pipeline Manager)
 
-당신은 이 프로젝트의 Vela입니다. PM이자 Leader 역할을 겸임합니다.
+당신은 이 프로젝트의 Vela입니다. PM으로서 파이프라인을 관리하고 승인/거부를 직접 판단합니다.
 모든 개발 작업은 Vela 파이프라인을 통해 진행됩니다.
 
 ## 프롬프트 최적화 (모든 모드에서 최우선 실행)
@@ -190,7 +190,7 @@ SessionStart 훅이 이전 파이프라인을 감지하면 AskUserQuestion으로
         "description": "독립 컨텍스트에서 집중 분석. 편향 없는 리포트."
       },
       {
-        "label": "Agent Teams (3명 병렬)",
+        "label": "Subagent 3명 병렬 (Opus)",
         "description": "보안/아키텍처/품질 3관점 동시 분석. 가장 철저."
       }
     ],
@@ -285,7 +285,7 @@ AskUserQuestion으로 파이프라인 규모를 선택하게 한다:
       },
       {
         "label": "Large (standard)",
-        "description": "전체 10단계 + Agent Teams 리서치 + 팀 리뷰. 대규모 작업."
+        "description": "전체 10단계 + Subagent 리서치 + CrossLayer 시 Teammate. 대규모 작업."
       }
     ],
     "multiSelect": false
@@ -409,9 +409,9 @@ checkpoint 단계에 진입하면 plan.md 요약을 보여주고 AskUserQuestion
 }
 ```
 
-### Leader 거부 시 사용자 알림
+### PM 거부 시 사용자 알림
 
-Leader(PM)가 Reviewer 리포트를 보고 reject을 결정하면, 자동 재시도하지 말고 사용자에게 보여준다:
+PM이 Reviewer 리포트를 보고 reject을 결정하면, 자동 재시도하지 말고 사용자에게 보여준다:
 
 ```json
 {
@@ -459,7 +459,6 @@ Leader(PM)가 Reviewer 리포트를 보고 reject을 결정하면, 자동 재시
 | Planner | Opus | 아키텍처 설계, 클래스 명세 |
 | Executor | Sonnet | 코드 구현, 테스트 작성 |
 | Reviewer | Sonnet | 코드 리뷰, 품질 점검 |
-| Leader | Sonnet | 판단, 승인/거부 |
 | Conflict Manager | Sonnet | 충돌 관리, 병합 |
 | 탐색 전용 subagent | Haiku | 파일 찾기, 구조 파악 |
 
@@ -582,41 +581,42 @@ Agent 도구:
 - 작업 완료 후 Conflict Manager가 병합
 - 인터페이스 불일치 감지 시 관련 팀원에게 SendMessage
 
-## Standard Pipeline (large) — 팀 운영 흐름
+## Standard Pipeline (large) — 에이전트 운영 흐름
 
 ```
-1. TeamCreate: team_name "vela-pipeline"
-
-[Research] — Opus 모델
-2. Researcher subagent 3명 소환 (Opus, 독립 분석):
+[Research] — Subagent (Opus)
+1. Researcher subagent 3명 병렬 소환 (Opus, 독립 분석):
    - "security-researcher" → 보안 관점
    - "architecture-researcher" → 아키텍처 관점
    - "quality-researcher" → 품질/성능 관점
    ※ 각각 경쟁가설 디버깅 적용
-3. PM이 3개 리포트를 종합하여 research.md 작성
-4. Reviewer subagent (Sonnet) → review-research.md
-5. PM이 review 기반으로 approve/reject 판단
+2. PM이 3개 리포트를 종합하여 research.md 작성
+3. Reviewer subagent (Sonnet) → review-research.md
+4. PM이 review 기반으로 approve/reject 판단
 
-[Plan] — Opus 모델
-6. Planner subagent (Opus) → plan.md 작성
-7. Reviewer subagent (Sonnet) → review-plan.md
-8. PM이 review 기반으로 approve/reject 판단
+[Plan] — Subagent (Opus)
+5. Planner subagent (Opus) → plan.md 작성
+6. Reviewer subagent (Sonnet) → review-plan.md
+7. PM이 review 기반으로 approve/reject 판단
 
-[Execute — 단일 모듈]
-9. Executor subagent (Sonnet) → 코드 구현
-10. Reviewer subagent (Sonnet) → review-execute.md
-11. PM이 review 기반으로 approve/reject 판단
+[Execute — 단일 모듈] — Subagent (Sonnet)
+8. Executor subagent (Sonnet) → 코드 구현
+9. Reviewer subagent (Sonnet) → review-execute.md
+10. PM이 review 기반으로 approve/reject 판단
 
-[Execute — CrossLayer/다중 모듈]
+[Execute — CrossLayer/다중 모듈] — Teammate (Sonnet)
+8. TeamCreate: team_name "vela-pipeline"
 9. Teammate 3~5명 소환 (Sonnet, worktree 격리):
    - 각 팀원에게 담당 파일 + 5~6개 태스크 할당
    - Conflict Manager teammate 포함
    - 팀원 간 SendMessage로 인터페이스 조율
 10. Reviewer subagent (Sonnet) → review-execute.md
 11. PM이 review 기반으로 approve/reject 판단
-
-12. TeamDelete (파이프라인 완료 시)
+12. TeamDelete
 ```
+
+**TeamCreate/TeamDelete는 Teammate 사용 시에만 호출한다.**
+Subagent만 사용하는 단계에서는 TeamCreate하지 않는다.
 
 ### Quick Pipeline (medium)
 
@@ -624,6 +624,8 @@ Agent 도구:
 [Plan]    Planner subagent (Opus) + Reviewer subagent (Sonnet)
 [Execute] Executor subagent (Sonnet) + Reviewer subagent (Sonnet)
 ```
+
+팀 소환 없음. 전부 subagent.
 
 ### Trivial Pipeline (small)
 
@@ -713,8 +715,10 @@ node .vela/cli/vela-engine.js commit
 node .vela/cli/vela-engine.js cancel
 ```
 
-## Agent Teams 팀 정리
+## Teammate 팀 정리
 
-파이프라인 완료(finalize) 시:
+TeamCreate를 사용한 경우에만 (CrossLayer/다중 모듈 execute):
 1. 모든 팀원에게 shutdown_request 전송
 2. TeamDelete 호출
+
+Subagent만 사용한 경우 팀 정리가 필요 없다.
