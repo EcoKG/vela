@@ -21,6 +21,7 @@ const commands = {
   history:   () => require('../lib/cmd-history')(PROJECT_DIR),
   cancel:    () => require('../lib/cmd-cancel')(PROJECT_DIR),
   report:    () => require('../lib/cmd-report')(PROJECT_DIR, args.slice(1)),
+  'wave-plan': () => require('../lib/cmd-wave-plan')(PROJECT_DIR),
   help:      showHelp,
   '--help':  showHelp,
   '-h':      showHelp,

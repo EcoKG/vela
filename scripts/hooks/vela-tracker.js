@@ -161,17 +161,62 @@ async function main() {
     });
   }
 
-  // ─── Agent Dispatch Detection ───
+  // ─── Agent Dispatch & Escalation Detection ───
   const state = findActivePipeline(velaDir);
   if (state && tool_name === 'Agent') {
+    const agentResult = tool_output || '';
+    const agentFailed = !agentResult ||
+      agentResult.includes('error') ||
+      agentResult.includes('failed') ||
+      agentResult.includes('Error');
+
     appendTraceEntry(velaDir, {
       action: 'agent_dispatch',
       description: tool_input.description || '',
       step: state.current_step,
       team_name: tool_input.team_name || null,
       model: tool_input.model || null,
+      result: agentFailed ? 'fail' : 'pass',
       timestamp: Date.now()
     });
+
+    // Track escalation candidates
+    if (agentFailed && state._artifactDir) {
+      const escalationPath = path.join(velaDir, 'state', 'escalation-pending.json');
+      const model = tool_input.model || 'sonnet';
+      const nextModel = model === 'haiku' ? 'sonnet' : model === 'sonnet' ? 'opus' : null;
+
+      let pending = { model, attempts: 1, next_model: nextModel };
+      try {
+        if (fs.existsSync(escalationPath)) {
+          const prev = JSON.parse(fs.readFileSync(escalationPath, 'utf-8'));
+          if (prev.model === model) {
+            pending.attempts = prev.attempts + 1;
+          }
+        }
+      } catch (e) {}
+
+      try {
+        const stateDir = path.join(velaDir, 'state');
+        if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
+        fs.writeFileSync(escalationPath, JSON.stringify(pending));
+      } catch (e) {}
+
+      if (nextModel && pending.attempts >= 2) {
+        output.push(
+          `🔭 [Vela] ⚠ Agent failed ${pending.attempts}x with model "${model}". ` +
+          `Escalate to "${nextModel}" per model-strategy.md.`
+        );
+      } else if (!nextModel) {
+        output.push(
+          `🔭 [Vela] ✗ Agent failed with Opus. Report to user via AskUserQuestion.`
+        );
+      }
+    } else {
+      // Clear escalation on success
+      const escalationPath = path.join(velaDir, 'state', 'escalation-pending.json');
+      try { if (fs.existsSync(escalationPath)) fs.unlinkSync(escalationPath); } catch (e) {}
+    }
   }
 
   // ─── Teammate Communication Tracking ───

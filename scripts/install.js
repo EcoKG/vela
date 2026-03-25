@@ -583,6 +583,9 @@ function upgrade() {
     { src: 'scripts/agents/conflict-manager/index.md', dst: 'agents/conflict-manager/index.md' },
     { src: 'scripts/agents/conflict-manager/merge-procedure.md', dst: 'agents/conflict-manager/merge-procedure.md' },
     { src: 'scripts/agents/conflict-manager/interface-watch.md', dst: 'agents/conflict-manager/interface-watch.md' },
+    { src: 'scripts/agents/debugger/index.md', dst: 'agents/debugger/index.md' },
+    { src: 'scripts/agents/debugger/diagnosis.md', dst: 'agents/debugger/diagnosis.md' },
+    { src: 'scripts/agents/debugger/fix-strategy.md', dst: 'agents/debugger/fix-strategy.md' },
     { src: 'scripts/guidelines/index.md', dst: 'guidelines/index.md' },
     { src: 'scripts/guidelines/coding-standards.md', dst: 'guidelines/coding-standards.md' },
     { src: 'scripts/guidelines/error-handling.md', dst: 'guidelines/error-handling.md' },
@@ -652,7 +655,8 @@ function validate() {
     'hooks', 'hooks/shared', 'cli', 'cache', 'templates',
     'state', 'artifacts', 'agents', 'references', 'guidelines',
     'agents/pm', 'agents/researcher', 'agents/executor',
-    'agents/planner', 'agents/reviewer', 'agents/conflict-manager'
+    'agents/planner', 'agents/reviewer', 'agents/conflict-manager',
+    'agents/debugger'
   ];
   for (const dir of requiredDirs) {
     const dirPath = path.join(velaDir, dir);

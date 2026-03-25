@@ -46,7 +46,8 @@ const commands = {
   branch: cmdBranch,
   commit: cmdCommit,
   cancel: cmdCancel,
-  history: cmdHistory
+  history: cmdHistory,
+  'wave-plan': cmdWavePlan
 };
 
 if (!command || !commands[command]) {
@@ -911,6 +912,112 @@ function scaleToPipeline(scale) {
     case 'hotfix': return 'hotfix';
     default: return 'standard';
   }
+}
+
+// ─── Wave Plan ───
+
+function cmdWavePlan() {
+  const state = findActiveState();
+  if (!state) return output({ ok: false, error: 'No active pipeline.' });
+  if (!state._artifactDir) return output({ ok: false, error: 'No artifact directory.' });
+
+  const planPath = path.join(state._artifactDir, 'plan.md');
+  if (!fs.existsSync(planPath)) {
+    return output({ ok: false, error: 'plan.md not found. Complete plan step first.' });
+  }
+
+  const planContent = fs.readFileSync(planPath, 'utf-8');
+
+  // Extract Task Distribution section
+  const taskDistMatch = planContent.match(/##\s*Task Distribution([\s\S]*?)(?=\n##\s|$)/i);
+  if (!taskDistMatch) {
+    return output({
+      ok: true,
+      command: 'wave-plan',
+      waves: [{ wave: 1, tasks: ['single-executor'], parallel: false }],
+      message: 'No Task Distribution section found. Single executor mode.'
+    });
+  }
+
+  const taskSection = taskDistMatch[1];
+
+  // Parse teammates and their tasks
+  const teammates = [];
+  const teammateRegex = /(?:teammate|팀원)\s*(?:\d+)?[:\s]*["']?([^"'\n]+)["']?/gi;
+  let match;
+  while ((match = teammateRegex.exec(taskSection)) !== null) {
+    teammates.push({ name: match[1].trim(), tasks: [], depends_on: [] });
+  }
+
+  // If no teammates found, parse bullet-style task lists
+  if (teammates.length === 0) {
+    const bulletTasks = taskSection.match(/[-*]\s+.+/g) || [];
+    return output({
+      ok: true,
+      command: 'wave-plan',
+      waves: [{ wave: 1, tasks: bulletTasks.map(t => t.replace(/^[-*]\s+/, '')), parallel: false }],
+      total_tasks: bulletTasks.length,
+      message: 'No teammate structure. Sequential execution.'
+    });
+  }
+
+  // Detect dependencies from keywords
+  const depKeywords = ['depends on', 'requires', 'after', '의존', '필요', '이후'];
+  for (const tm of teammates) {
+    for (const keyword of depKeywords) {
+      const depRegex = new RegExp(`${tm.name}[^\\n]*${keyword}[^\\n]*?(\\w+-\\w+)`, 'gi');
+      let depMatch;
+      while ((depMatch = depRegex.exec(taskSection)) !== null) {
+        tm.depends_on.push(depMatch[1]);
+      }
+    }
+  }
+
+  // Build waves based on dependencies
+  const waves = [];
+  const completed = new Set();
+  let remaining = [...teammates];
+  let waveNum = 1;
+
+  while (remaining.length > 0) {
+    const currentWave = remaining.filter(tm =>
+      tm.depends_on.every(dep => completed.has(dep))
+    );
+
+    if (currentWave.length === 0) {
+      // Circular dependency or unresolvable — put all remaining in one wave
+      waves.push({
+        wave: waveNum,
+        teammates: remaining.map(t => t.name),
+        parallel: remaining.length > 1,
+        note: 'Unresolved dependencies — grouped together'
+      });
+      break;
+    }
+
+    waves.push({
+      wave: waveNum,
+      teammates: currentWave.map(t => t.name),
+      parallel: currentWave.length > 1
+    });
+
+    for (const tm of currentWave) {
+      completed.add(tm.name);
+    }
+    remaining = remaining.filter(tm => !completed.has(tm.name));
+    waveNum++;
+  }
+
+  output({
+    ok: true,
+    command: 'wave-plan',
+    total_teammates: teammates.length,
+    total_waves: waves.length,
+    waves,
+    message: waves.length === 1
+      ? 'All teammates can run in parallel (no dependencies).'
+      : `${waves.length} waves. Wave 1 runs first, then Wave 2, etc.`
+  });
 }
 
 function slugify(text) {
