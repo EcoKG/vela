@@ -1,0 +1,21 @@
+{
+  "name": "@ecokg/vela",
+  "version": "3.0.0",
+  "description": "⛵ Vela Engine — Sandbox Development System for Claude Code",
+  "bin": {
+    "vela": "./bin/vela.js"
+  },
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "keywords": ["claude-code", "sandbox", "pipeline", "ai-coding", "vela"],
+  "author": "EcoKG",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EcoKG/vela.git"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
