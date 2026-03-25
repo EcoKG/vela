@@ -559,6 +559,34 @@ function upgrade() {
     { src: 'references/gates-and-guards.md', dst: 'references/gates-and-guards.md' },
     { src: 'references/cli-reference.md', dst: 'references/cli-reference.md' },
     { src: 'references/messages-en.md', dst: 'references/messages-en.md' },
+    // Agent tree
+    { src: 'scripts/agents/pm/index.md', dst: 'agents/pm/index.md' },
+    { src: 'scripts/agents/pm/prompt-optimizer.md', dst: 'agents/pm/prompt-optimizer.md' },
+    { src: 'scripts/agents/pm/pipeline-flow.md', dst: 'agents/pm/pipeline-flow.md' },
+    { src: 'scripts/agents/pm/team-rules.md', dst: 'agents/pm/team-rules.md' },
+    { src: 'scripts/agents/pm/model-strategy.md', dst: 'agents/pm/model-strategy.md' },
+    { src: 'scripts/agents/pm/block-recovery.md', dst: 'agents/pm/block-recovery.md' },
+    { src: 'scripts/agents/researcher/index.md', dst: 'agents/researcher/index.md' },
+    { src: 'scripts/agents/researcher/hypothesis.md', dst: 'agents/researcher/hypothesis.md' },
+    { src: 'scripts/agents/researcher/security.md', dst: 'agents/researcher/security.md' },
+    { src: 'scripts/agents/researcher/architecture.md', dst: 'agents/researcher/architecture.md' },
+    { src: 'scripts/agents/researcher/quality.md', dst: 'agents/researcher/quality.md' },
+    { src: 'scripts/agents/executor/index.md', dst: 'agents/executor/index.md' },
+    { src: 'scripts/agents/executor/tdd.md', dst: 'agents/executor/tdd.md' },
+    { src: 'scripts/agents/executor/file-ownership.md', dst: 'agents/executor/file-ownership.md' },
+    { src: 'scripts/agents/executor/worktree.md', dst: 'agents/executor/worktree.md' },
+    { src: 'scripts/agents/planner/index.md', dst: 'agents/planner/index.md' },
+    { src: 'scripts/agents/planner/spec-format.md', dst: 'agents/planner/spec-format.md' },
+    { src: 'scripts/agents/planner/crosslayer.md', dst: 'agents/planner/crosslayer.md' },
+    { src: 'scripts/agents/reviewer/index.md', dst: 'agents/reviewer/index.md' },
+    { src: 'scripts/agents/reviewer/scoring.md', dst: 'agents/reviewer/scoring.md' },
+    { src: 'scripts/agents/conflict-manager/index.md', dst: 'agents/conflict-manager/index.md' },
+    { src: 'scripts/agents/conflict-manager/merge-procedure.md', dst: 'agents/conflict-manager/merge-procedure.md' },
+    { src: 'scripts/agents/conflict-manager/interface-watch.md', dst: 'agents/conflict-manager/interface-watch.md' },
+    { src: 'scripts/guidelines/index.md', dst: 'guidelines/index.md' },
+    { src: 'scripts/guidelines/coding-standards.md', dst: 'guidelines/coding-standards.md' },
+    { src: 'scripts/guidelines/error-handling.md', dst: 'guidelines/error-handling.md' },
+    { src: 'scripts/guidelines/testing-strategy.md', dst: 'guidelines/testing-strategy.md' },
   ];
 
   // Do NOT overwrite config.json (user may have customized it)
@@ -622,7 +650,9 @@ function validate() {
   // 1. Required directories
   const requiredDirs = [
     'hooks', 'hooks/shared', 'cli', 'cache', 'templates',
-    'state', 'artifacts', 'agents', 'references'
+    'state', 'artifacts', 'agents', 'references', 'guidelines',
+    'agents/pm', 'agents/researcher', 'agents/executor',
+    'agents/planner', 'agents/reviewer', 'agents/conflict-manager'
   ];
   for (const dir of requiredDirs) {
     const dirPath = path.join(velaDir, dir);
@@ -663,7 +693,36 @@ function validate() {
     { src: 'references/interactive-ui.md', dst: 'references/interactive-ui.md' },
     { src: 'references/gates-and-guards.md', dst: 'references/gates-and-guards.md' },
     { src: 'references/cli-reference.md', dst: 'references/cli-reference.md' },
-    { src: 'references/messages-en.md', dst: 'references/messages-en.md' }
+    { src: 'references/messages-en.md', dst: 'references/messages-en.md' },
+    // Agent tree structure
+    { src: 'scripts/agents/pm/index.md', dst: 'agents/pm/index.md' },
+    { src: 'scripts/agents/pm/prompt-optimizer.md', dst: 'agents/pm/prompt-optimizer.md' },
+    { src: 'scripts/agents/pm/pipeline-flow.md', dst: 'agents/pm/pipeline-flow.md' },
+    { src: 'scripts/agents/pm/team-rules.md', dst: 'agents/pm/team-rules.md' },
+    { src: 'scripts/agents/pm/model-strategy.md', dst: 'agents/pm/model-strategy.md' },
+    { src: 'scripts/agents/pm/block-recovery.md', dst: 'agents/pm/block-recovery.md' },
+    { src: 'scripts/agents/researcher/index.md', dst: 'agents/researcher/index.md' },
+    { src: 'scripts/agents/researcher/hypothesis.md', dst: 'agents/researcher/hypothesis.md' },
+    { src: 'scripts/agents/researcher/security.md', dst: 'agents/researcher/security.md' },
+    { src: 'scripts/agents/researcher/architecture.md', dst: 'agents/researcher/architecture.md' },
+    { src: 'scripts/agents/researcher/quality.md', dst: 'agents/researcher/quality.md' },
+    { src: 'scripts/agents/executor/index.md', dst: 'agents/executor/index.md' },
+    { src: 'scripts/agents/executor/tdd.md', dst: 'agents/executor/tdd.md' },
+    { src: 'scripts/agents/executor/file-ownership.md', dst: 'agents/executor/file-ownership.md' },
+    { src: 'scripts/agents/executor/worktree.md', dst: 'agents/executor/worktree.md' },
+    { src: 'scripts/agents/planner/index.md', dst: 'agents/planner/index.md' },
+    { src: 'scripts/agents/planner/spec-format.md', dst: 'agents/planner/spec-format.md' },
+    { src: 'scripts/agents/planner/crosslayer.md', dst: 'agents/planner/crosslayer.md' },
+    { src: 'scripts/agents/reviewer/index.md', dst: 'agents/reviewer/index.md' },
+    { src: 'scripts/agents/reviewer/scoring.md', dst: 'agents/reviewer/scoring.md' },
+    { src: 'scripts/agents/conflict-manager/index.md', dst: 'agents/conflict-manager/index.md' },
+    { src: 'scripts/agents/conflict-manager/merge-procedure.md', dst: 'agents/conflict-manager/merge-procedure.md' },
+    { src: 'scripts/agents/conflict-manager/interface-watch.md', dst: 'agents/conflict-manager/interface-watch.md' },
+    // Guidelines
+    { src: 'scripts/guidelines/index.md', dst: 'guidelines/index.md' },
+    { src: 'scripts/guidelines/coding-standards.md', dst: 'guidelines/coding-standards.md' },
+    { src: 'scripts/guidelines/error-handling.md', dst: 'guidelines/error-handling.md' },
+    { src: 'scripts/guidelines/testing-strategy.md', dst: 'guidelines/testing-strategy.md' }
   ];
 
   for (const f of requiredFiles) {

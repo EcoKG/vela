@@ -35,9 +35,17 @@ if [ "$LOCAL_FLAG" = "--local" ]; then
     cp "$TMP/scripts/install.js" .vela/
     cp "$TMP/scripts/statusline.sh" .vela/
     cp "$TMP/scripts/agents/"*.md .vela/agents/
+    # Agent tree structure
+    for role in pm researcher executor planner reviewer conflict-manager; do
+      mkdir -p ".vela/agents/$role"
+      cp "$TMP/scripts/agents/$role/"*.md ".vela/agents/$role/" 2>/dev/null
+    done
     cp "$TMP/templates/"*.json .vela/templates/
     mkdir -p .vela/references
     cp "$TMP/references/"*.md .vela/references/ 2>/dev/null
+    # Guidelines
+    mkdir -p .vela/guidelines
+    cp "$TMP/scripts/guidelines/"*.md .vela/guidelines/ 2>/dev/null
     # Update .claude/agents/vela.md
     if [ -d ".claude/agents" ]; then
       cp "$TMP/scripts/agents/vela.md" .claude/agents/

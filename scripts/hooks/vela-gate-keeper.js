@@ -19,6 +19,7 @@
  * stderr — Block reason (when exit 2)
  */
 
+const fs = require('fs');
 const path = require('path');
 const { findActivePipeline, getCurrentMode, readConfig } = require('./shared/pipeline');
 const {
@@ -132,8 +133,66 @@ async function main() {
     process.exit(2);
   }
 
-  // Write-only mode: allow reads (needed for context) but don't block writes
-  // No restrictions needed for write-only beyond what gate guard handles
+  // ─── GATE 2.5: PM Source Code Access Prohibition ───
+  // PM(본체)은 소스 코드에 절대 직접 접근하지 않는다.
+  // 모든 소스 코드 읽기/쓰기는 반드시 Subagent 또는 Teammate에 위임한다.
+  // 예외: trivial 파이프라인 (PM 직접 수행), .vela/ 내부 파일, 설정 파일
+  const ALL_CODE_TOOLS = new Set([...WRITE_TOOLS, 'Read', 'Glob', 'Grep']);
+  if (ALL_CODE_TOOLS.has(tool_name)) {
+    const state = findActivePipeline(velaDir);
+    if (state && state.pipeline_type !== 'trivial') {
+      const targetFile = tool_input.file_path || tool_input.path || tool_input.pattern || '';
+
+      // .vela/ 내부 파일은 항상 허용 (오케스트레이션에 필수)
+      if (targetFile.includes('.vela/') || targetFile.includes('.vela\\')) {
+        // pass through to next gate
+      }
+      // CLAUDE.md, package.json 등 프로젝트 루트 설정 파일 허용
+      else if (/^(CLAUDE\.md|package\.json|tsconfig\.json|\.gitignore|README\.md)$/i.test(path.basename(targetFile))) {
+        // pass through
+      }
+      // Glob/Grep: pattern만 있고 path가 없는 경우 — 소스 탐색으로 간주
+      else if ((tool_name === 'Glob' || tool_name === 'Grep') && !targetFile.includes('.vela/')) {
+        // SubagentStart 훅이 delegation.json을 생성한 경우 허용
+        const delegationPath = path.join(velaDir, 'state', 'delegation.json');
+        if (!fs.existsSync(delegationPath)) {
+          process.stderr.write(
+            `⛵ [Vela] ✦ BLOCKED [VK-07]: PM은 소스 코드를 직접 탐색할 수 없습니다.\n` +
+            `  Tool: ${tool_name}\n` +
+            `  이 작업은 반드시 Subagent 또는 Teammate에 위임해야 합니다.\n` +
+            `  Recovery: Agent 도구로 적절한 에이전트를 소환하세요.\n` +
+            `  - 파일 탐색 → Subagent (model: "haiku")\n` +
+            `  - 코드 분석 → Subagent (model: "opus")\n` +
+            `  - 코드 구현 → Subagent (model: "sonnet")`
+          );
+          process.exit(2);
+        }
+      }
+      // Read/Write/Edit: 소스 코드 파일
+      else if (targetFile && !targetFile.includes('.vela/')) {
+        const ext = path.extname(targetFile).toLowerCase();
+        const isSourceCode = CODE_EXTENSIONS.has(ext);
+        const inSkipPath = SKIP_PATHS.some(sp => targetFile.includes(sp));
+
+        if (isSourceCode && !inSkipPath) {
+          const delegationPath = path.join(velaDir, 'state', 'delegation.json');
+          if (!fs.existsSync(delegationPath)) {
+            process.stderr.write(
+              `⛵ [Vela] ✦ BLOCKED [VK-07]: PM은 소스 코드에 직접 접근할 수 없습니다.\n` +
+              `  Tool: ${tool_name} | File: ${targetFile}\n` +
+              `  이 작업은 반드시 Subagent 또는 Teammate에 위임해야 합니다.\n` +
+              `  Recovery: Agent 도구로 에이전트를 소환하세요.\n` +
+              `  - 파일 읽기/탐색 → Subagent (model: "haiku")\n` +
+              `  - 코드 분석 → Subagent (model: "opus")\n` +
+              `  - 코드 구현 → Subagent (model: "sonnet")\n` +
+              `  - 다중 파일 수정 → Teammate (model: "sonnet", isolation: "worktree")`
+            );
+            process.exit(2);
+          }
+        }
+      }
+    }
+  }
 
   // ─── GATE 3: Sensitive File Protection ───
   if (WRITE_TOOLS.has(tool_name)) {
