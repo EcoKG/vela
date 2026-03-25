@@ -2,95 +2,70 @@
 /**
  * ⛵ Vela CLI — Sandbox Development System for Claude Code
  *
- * Usage:
- *   vela init [project-dir]       — Install Vela into a project
- *   vela start "task" [--scale]   — Start a pipeline
- *   vela status                   — Show current pipeline status
- *   vela upgrade                  — Update all Vela files to latest
- *   vela history                  — Show pipeline history
- *   vela cancel                   — Cancel active pipeline
- *   vela report [--html file]     — Generate pipeline report
- *   vela help                     — Show this help
- *
- * Examples:
- *   npx @ecokg/vela init
- *   npx @ecokg/vela start "Add OAuth authentication" --scale large
- *   npx @ecokg/vela status
+ * Human-facing CLI tool. Run from terminal to manage Vela pipelines.
  */
 
 const path = require('path');
-const fs = require('fs');
+const { BANNER, BANNER_MINI, info, dimText, bold, reset, cyan } = require('../lib/banner');
 
 const args = process.argv.slice(2);
 const command = args[0] || 'help';
-
-// Resolve Vela source directory (where this CLI is installed)
 const VELA_SRC = path.resolve(__dirname, '..');
-
-// Resolve project directory (cwd or specified)
 const PROJECT_DIR = process.cwd();
 
-// ─── Command Router ───
 const commands = {
-  init: () => require('../lib/cmd-init')(PROJECT_DIR, VELA_SRC, args.slice(1)),
-  start: () => require('../lib/cmd-start')(PROJECT_DIR, args.slice(1)),
-  status: () => require('../lib/cmd-status')(PROJECT_DIR),
-  upgrade: () => require('../lib/cmd-upgrade')(PROJECT_DIR, VELA_SRC),
-  history: () => require('../lib/cmd-history')(PROJECT_DIR),
-  cancel: () => require('../lib/cmd-cancel')(PROJECT_DIR),
-  report: () => require('../lib/cmd-report')(PROJECT_DIR, args.slice(1)),
-  help: showHelp,
-  '--help': showHelp,
-  '-h': showHelp,
-  version: showVersion,
+  init:      () => require('../lib/cmd-init')(PROJECT_DIR, VELA_SRC, args.slice(1)),
+  start:     () => require('../lib/cmd-start')(PROJECT_DIR, args.slice(1)),
+  status:    () => require('../lib/cmd-status')(PROJECT_DIR),
+  upgrade:   () => require('../lib/cmd-upgrade')(PROJECT_DIR, VELA_SRC),
+  history:   () => require('../lib/cmd-history')(PROJECT_DIR),
+  cancel:    () => require('../lib/cmd-cancel')(PROJECT_DIR),
+  report:    () => require('../lib/cmd-report')(PROJECT_DIR, args.slice(1)),
+  help:      showHelp,
+  '--help':  showHelp,
+  '-h':      showHelp,
+  version:   showVersion,
   '--version': showVersion,
-  '-v': showVersion,
+  '-v':      showVersion,
 };
 
 if (commands[command]) {
   try {
     commands[command]();
   } catch (e) {
-    console.error(`\n⛵ [Vela] Error: ${e.message}\n`);
+    console.error(`\n  ${'\x1b[31m'}✗${reset} ${e.message}\n`);
     process.exit(1);
   }
 } else {
-  console.error(`\n⛵ [Vela] Unknown command: ${command}`);
-  console.error(`Run 'vela help' for usage.\n`);
+  console.error(`\n  ${'\x1b[31m'}✗${reset} Unknown command: ${command}`);
+  console.error(`  Run ${cyan}vela help${reset} for usage.\n`);
   process.exit(1);
 }
 
 function showHelp() {
-  console.log(`
-⛵ Vela Engine v3.0 — Sandbox Development System
-
-Usage: vela <command> [options]
-
-Commands:
-  init [dir]              Install Vela into a project directory
-  start "task" [--scale]  Start a pipeline (scale: small|medium|large|ralph|hotfix)
-  status                  Show current pipeline status
-  upgrade                 Update all Vela files to latest version
-  history                 Show pipeline execution history
-  cancel                  Cancel active pipeline
-  report [--html file]    Generate pipeline report
-  help                    Show this help
-  version                 Show version
-
-Examples:
-  vela init                                    # Install in current directory
-  vela init ./my-project                       # Install in specific directory
-  vela start "Add OAuth" --scale large         # Start large pipeline
-  vela status                                  # Check pipeline status
-  vela upgrade                                 # Update to latest
-
-Install:
-  npm install -g @ecokg/vela                   # Global install
-  npx @ecokg/vela init                         # One-time use
-`);
+  console.log(BANNER);
+  const pkg = require('../package.json');
+  console.log(`  ${dimText(`v${pkg.version}`)}\n`);
+  console.log(`  ${bold}Usage:${reset} vela <command> [options]\n`);
+  console.log(`  ${bold}Commands:${reset}`);
+  console.log(`    ${cyan}init${reset} [dir]                Install Vela into a project`);
+  console.log(`    ${cyan}start${reset} "task" [--scale]    Start a pipeline`);
+  console.log(`    ${cyan}status${reset}                    Show current pipeline status`);
+  console.log(`    ${cyan}upgrade${reset}                   Update Vela to latest version`);
+  console.log(`    ${cyan}history${reset}                   Show pipeline execution history`);
+  console.log(`    ${cyan}cancel${reset}                    Cancel active pipeline`);
+  console.log(`    ${cyan}report${reset} [--html file]      Generate pipeline report`);
+  console.log(`    ${cyan}help${reset}                      Show this help`);
+  console.log(`    ${cyan}version${reset}                   Show version\n`);
+  console.log(`  ${bold}Scales:${reset} small | medium | large | ralph | hotfix\n`);
+  console.log(`  ${bold}Examples:${reset}`);
+  console.log(`    ${dimText('$')} vela init`);
+  console.log(`    ${dimText('$')} vela start "Add OAuth authentication" --scale large`);
+  console.log(`    ${dimText('$')} vela status`);
+  console.log(`    ${dimText('$')} vela history\n`);
 }
 
 function showVersion() {
   const pkg = require('../package.json');
-  console.log(`⛵ Vela Engine v${pkg.version}`);
+  console.log(`${BANNER_MINI} ${dimText(`v${pkg.version}`)}`);
 }
