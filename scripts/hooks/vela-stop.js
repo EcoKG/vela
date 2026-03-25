@@ -28,6 +28,14 @@ async function main() {
   const state = findActivePipeline(velaDir);
   if (!state) process.exit(0);
 
+  // ─── Clean up delegation signal ───
+  // When PM's turn ends, clear the delegation flag so next PM action
+  // must go through a SubAgent again.
+  const delegationPath = path.join(velaDir, 'state', 'delegation.json');
+  if (fs.existsSync(delegationPath)) {
+    try { fs.unlinkSync(delegationPath); } catch (e) {}
+  }
+
   // Active pipeline exists — warn user
   const step = state.current_step || '?';
   const ptype = state.pipeline_type || '?';

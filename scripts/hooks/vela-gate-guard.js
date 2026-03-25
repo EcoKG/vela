@@ -188,6 +188,26 @@ async function main() {
     // GUARD 10 REMOVED — Agent Teams provides agent isolation.
     // Each agent (Executor, Researcher, etc.) runs as a separate Claude instance
     // with its own CLAUDE.md defining what it can/cannot do.
+
+    // ─── GUARD 12: PM must delegate source edits in execute step ───
+    // PM should not directly write source code during execute step.
+    // Subagents/Teammates must do the actual implementation.
+    // Delegation is signaled by .vela/state/delegation.json existing.
+    if (executeReached && currentStep === 'execute') {
+      const delegationPath = path.join(velaDir, 'state', 'delegation.json');
+      const isDelegated = fs.existsSync(delegationPath);
+      if (!isDelegated) {
+        process.stderr.write(
+          `🌟 [Vela] ✦ BLOCKED [VG-12]: PM direct source modification in execute step.\n` +
+          `  File: ${targetFile}\n` +
+          `  Recovery: Spawn a Subagent or Teammate to implement the code.\n` +
+          `  - Single module  → Subagent (Sonnet)\n` +
+          `  - Multi-file     → Teammate (Sonnet) with worktree isolation\n` +
+          `  Delegation activates automatically when a SubAgent is started.`
+        );
+        process.exit(2);
+      }
+    }
   }
 
   // ─── GUARD 3: Build/test must pass before git commit ───

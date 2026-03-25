@@ -28,6 +28,20 @@ async function main() {
   const state = findActivePipeline(velaDir);
   if (!state) process.exit(0);
 
+  // ─── Delegation signal for GUARD 12 ───
+  // When a subagent starts during execute step, write delegation.json
+  // so gate-guard knows source edits are being done by a delegated agent.
+  if (state.current_step === 'execute') {
+    const stateDir = path.join(velaDir, 'state');
+    if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
+    const delegationPath = path.join(stateDir, 'delegation.json');
+    fs.writeFileSync(delegationPath, JSON.stringify({
+      active: true,
+      step: state.current_step,
+      started_at: Date.now()
+    }, null, 2));
+  }
+
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'SubagentStart',

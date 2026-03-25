@@ -410,6 +410,7 @@ PM이 Reviewer 리포트를 읽고 직접 approve/reject을 결정한다.
 | **VG-07** | 잘못된 단계에서 git commit | `node .vela/cli/vela-engine.js commit` 사용 (commit 단계에서) |
 | **VG-08** | verify 전 git push | verify 단계 완료 후 push |
 | **VG-11** | 비-team 단계에서 approval/review 작성 | team 단계(research/plan/execute)로 이동 후 작성 |
+| **VG-12** | execute 단계에서 PM 직접 소스 수정 | Subagent(단일 모듈) 또는 Teammate(다중 파일) 소환하여 위임 |
 
 ### 복구 원칙
 

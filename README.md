@@ -269,6 +269,7 @@ Research 단계 완료 시 TaskCompleted 훅이 소통 이력을 확인.
 | GUARD 8 | VG-08 | verify 완료 전 git push 차단 |
 | GUARD 9 | — | 보호 브랜치 직접 커밋 경고 |
 | **GUARD 11** | **VG-11** | **비-team 단계에서 approval/review 작성 차단** — team 단계에서만 허용 |
+| **GUARD 12** | **VG-12** | **execute 단계 PM 직접 소스 수정 차단** — SubAgent(단일 모듈) 또는 Teammate(다중 파일) 위임 강제 |
 
 ### 차단 시 자동 복구 (Block Recovery)
 
