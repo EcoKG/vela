@@ -747,13 +747,18 @@ function validate() {
     }
   }
 
-  // 3. config.json validity
+  // 3. config.json — create if missing, repair if broken
   const configPath = path.join(velaDir, 'config.json');
-  if (fs.existsSync(configPath)) {
+  if (!fs.existsSync(configPath)) {
+    const templateConfig = path.join(velaDir, 'templates', 'config.json');
+    if (fs.existsSync(templateConfig)) {
+      fs.copyFileSync(templateConfig, configPath);
+      results.fixed.push('Created config.json from template');
+    }
+  } else {
     try {
       JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     } catch (e) {
-      // Broken config — restore from template
       const templateConfig = path.join(velaDir, 'templates', 'config.json');
       if (fs.existsSync(templateConfig)) {
         fs.copyFileSync(templateConfig, configPath);
