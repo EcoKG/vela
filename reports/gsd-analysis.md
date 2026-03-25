@@ -147,18 +147,18 @@ new-project → discuss → plan → execute → verify → complete-milestone
 
 ### 4.3 GSD가 더 나은 점
 
-| 항목 | GSD 방식 | Vela 현재 |
-|------|---------|-----------|
-| **Context Rot 해결** | Adaptive Context Loader (4-Tier, 58% 절감) | TOC 기반 선택적 로딩 (개선 여지) |
-| **Wave 병렬 실행** | 의존성 분석 → 자동 Wave 그룹화 → 병렬 | CrossLayer만 병렬, 의존성 분석 없음 |
-| **자동 에스컬레이션** | Haiku 실패 → Sonnet → Opus 자동 전환 | 역할별 고정, 실패 시 수동 |
-| **Discuss 단계** | 회색 영역 식별 + 도메인별 가이드 질문 | 프롬프트 옵티마이저 (보완 유도만) |
-| **Quick Mode** | 경량 ad-hoc 작업 | trivial이지만 파이프라인 필수 |
-| **XML 구조화 프롬프트** | task/files/action/verify/done 구조 | 자연어 프롬프트 |
-| **자동 디버깅** | debugger 에이전트 + 실패 진단 | 수동 |
-| **에이전트 수** | 15개 (세분화) | 6개 |
+| 항목 | GSD 방식 | Vela 현재 | 상태 |
+|------|---------|-----------|------|
+| **Context Rot 해결** | Adaptive Context Loader (4-Tier, 58% 절감) | **4-Tier 컨텍스트 로딩 규칙 적용** (pm/team-rules.md) | ✅ 흡수 |
+| **Wave 병렬 실행** | 의존성 분석 → 자동 Wave 그룹화 → 병렬 | CrossLayer만 병렬, 의존성 분석 없음 | 📋 계획 |
+| **자동 에스컬레이션** | Haiku 실패 → Sonnet → Opus 자동 전환 | 역할별 고정, 실패 시 수동 | 📋 계획 |
+| **Discuss 단계** | 회색 영역 식별 + 도메인별 가이드 질문 | **도메인별 회색영역 가이드 적용** (pm/prompt-optimizer.md) | ✅ 흡수 |
+| **Quick Mode** | 경량 ad-hoc 작업 | trivial 파이프라인 | 동등 |
+| **XML 구조화 프롬프트** | task/files/action/verify/done 구조 | **XML `<task>` 구조 소환 프롬프트** (pm/team-rules.md) | ✅ 흡수 |
+| **자동 디버깅** | debugger 에이전트 + 실패 진단 | 수동 | 📋 계획 |
+| **에이전트 수** | 15개 (세분화) | 7개 (트리 구조) | Vela 충분 |
 
-### 4.3 Vela가 더 나은 점
+### 4.4 Vela가 더 나은 점
 
 | 항목 | Vela 방식 | GSD 방식 |
 |------|----------|---------|
