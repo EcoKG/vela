@@ -805,24 +805,30 @@ function validate() {
     }
   }
 
-  // 4. Clean up old/legacy files (v3 → v4 migration)
+  // 4. Clean up old/legacy files and directories (v3 → v4 migration)
   const legacyFiles = [
-    path.join(velaDir, 'hooks', 'vela-pm.md'),  // old agent name
-    // v3 agents removed in v4
+    path.join(velaDir, 'hooks', 'vela-pm.md'),
     path.join(velaDir, 'agents', 'leader.md'),
     path.join(velaDir, 'agents', 'conflict-manager.md'),
-    path.join(velaDir, 'agents', 'reviewer', 'index.md'),
-    path.join(velaDir, 'agents', 'reviewer', 'scoring.md'),
-    path.join(velaDir, 'agents', 'conflict-manager', 'index.md'),
-    path.join(velaDir, 'agents', 'conflict-manager', 'merge-procedure.md'),
-    path.join(velaDir, 'agents', 'conflict-manager', 'interface-watch.md'),
     path.join(velaDir, 'agents', 'executor', 'file-ownership.md'),
     path.join(velaDir, 'agents', 'executor', 'worktree.md'),
   ];
   for (const lf of legacyFiles) {
     if (fs.existsSync(lf)) {
       fs.unlinkSync(lf);
-      results.fixed.push(`Removed legacy file: ${path.basename(lf)}`);
+      results.fixed.push(`Removed legacy file: ${path.relative(velaDir, lf)}`);
+    }
+  }
+
+  // Legacy directories (v3 agents removed in v4)
+  const legacyDirs = [
+    path.join(velaDir, 'agents', 'reviewer'),
+    path.join(velaDir, 'agents', 'conflict-manager'),
+  ];
+  for (const ld of legacyDirs) {
+    if (fs.existsSync(ld)) {
+      fs.rmSync(ld, { recursive: true, force: true });
+      results.fixed.push(`Removed legacy directory: agents/${path.basename(ld)}/`);
     }
   }
 
