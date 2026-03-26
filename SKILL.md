@@ -64,6 +64,8 @@ v4부터 Vela의 모든 파이프라인 명령어는 `~/.claude/commands/vela/` 
    ```
    .vela/
    ├── config.json
+   ├── install.js
+   ├── statusline.sh
    ├── hooks/
    │   ├── vela-gate-keeper.js
    │   ├── vela-gate-guard.js
@@ -80,16 +82,28 @@ v4부터 Vela의 모든 파이프라인 명령어는 `~/.claude/commands/vela/` 
    │   └── treenode.js
    ├── templates/
    │   └── pipeline.json
+   ├── agents/
+   │   ├── vela.md
+   │   ├── pm/
+   │   ├── researcher/
+   │   ├── synthesizer/
+   │   ├── planner/
+   │   ├── executor/
+   │   └── debugger/
+   ├── references/
    └── artifacts/
    ```
 
 3. **스크립트 배포**
-   이 스킬의 `scripts/` 디렉토리에 있는 파일들을 `.vela/`로 복사한다:
+   이 스킬의 파일들을 `.vela/`로 복사한다:
    - `scripts/hooks/*` → `.vela/hooks/`
    - `scripts/cli/*` → `.vela/cli/`
    - `scripts/cache/*` → `.vela/cache/`
    - `scripts/install.js` → `.vela/install.js`
+   - `scripts/statusline.sh` → `.vela/statusline.sh`
+   - `scripts/agents/` (전체 트리) → `.vela/agents/`
    - `templates/*` → `.vela/templates/`
+   - `references/*` → `.vela/references/` (존재하는 경우)
 
 4. **훅 등록**
    ```bash
