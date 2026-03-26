@@ -1,6 +1,73 @@
 {
   "version": "1.1",
   "pipelines": {
+    "v4": {
+      "description": "Vela v4 pipeline — discuss → plan → execute → verify → ship",
+      "steps": [
+        {
+          "id": "init",
+          "name": "Initialize",
+          "actor": "pm",
+          "mode": "read",
+          "entry_gate": [],
+          "exit_gate": ["artifact_dir_created"],
+          "artifacts": [],
+          "max_revisions": 1
+        },
+        {
+          "id": "discuss",
+          "name": "Discuss & Clarify",
+          "actor": "pm",
+          "mode": "read",
+          "entry_gate": ["init_complete"],
+          "exit_gate": ["context_md_exists"],
+          "artifacts": ["{N}-context.md"],
+          "max_revisions": 1
+        },
+        {
+          "id": "plan",
+          "name": "Research & Plan",
+          "actor": "agent",
+          "mode": "read",
+          "entry_gate": ["context_md_exists"],
+          "exit_gate": ["plan_xml_exists"],
+          "artifacts": ["{N}-plan.xml"],
+          "max_revisions": 3
+        },
+        {
+          "id": "execute",
+          "name": "Execute (Wave-based)",
+          "actor": "agent",
+          "mode": "readwrite",
+          "entry_gate": ["plan_xml_exists"],
+          "exit_gate": ["summary_md_exists"],
+          "artifacts": ["{N}-{M}-summary.md"],
+          "max_revisions": 5,
+          "sub_phases": ["test-write", "implement", "refactor"],
+          "sub_phase_tracking": true
+        },
+        {
+          "id": "verify",
+          "name": "Verify",
+          "actor": "agent",
+          "mode": "read",
+          "entry_gate": ["summary_md_exists"],
+          "exit_gate": ["verification_md_exists"],
+          "artifacts": ["{N}-verification.md"],
+          "max_revisions": 2
+        },
+        {
+          "id": "ship",
+          "name": "Ship (PR)",
+          "actor": "pm",
+          "mode": "read",
+          "entry_gate": ["verification_md_exists"],
+          "exit_gate": ["pr_created"],
+          "artifacts": [],
+          "max_revisions": 1
+        }
+      ]
+    },
     "standard": {
       "description": "Full pipeline for all tasks",
       "steps": [

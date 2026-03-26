@@ -97,7 +97,8 @@ function cmdInit() {
         medium: 'quick pipeline (init → plan → execute → verify → commit → finalize) — 3파일 이하, 100줄 이하',
         large: 'standard pipeline (full 10-step with research, plan, team review) — 대규모 작업',
         ralph: 'ralph pipeline (테스트 통과까지 자동 반복) — 버그 수정, TDD',
-        hotfix: 'hotfix pipeline (init → execute → commit) — 문서, 설정 등 비-소스 수정'
+        hotfix: 'hotfix pipeline (init → execute → commit) — 문서, 설정 등 비-소스 수정',
+        v4: 'v4 pipeline (init → discuss → plan → execute → verify → ship) — Vela v4 단계별 실행'
       },
       usage: 'vela-engine init "task" --scale small|medium|large|ralph|hotfix',
       message: 'User must select pipeline scale. Present the options and let them choose.'
@@ -910,6 +911,10 @@ function scaleToPipeline(scale) {
     case 'large': return 'standard';
     case 'ralph': return 'ralph';
     case 'hotfix': return 'hotfix';
+    case 'v4': return 'v4';
+    // v4 phase names: discuss, plan, execute, verify, ship are valid step ids
+    case 'discuss': return 'v4';
+    case 'ship': return 'v4';
     default: return 'standard';
   }
 }

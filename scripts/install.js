@@ -259,24 +259,24 @@ function install() {
     tips: [
       '⛵ 별을 따라 항해하라 — 모든 파이프라인은 목적지로 향한다',
       '🌟 품질은 지시가 아닌 구조로 강제된다',
-      '🧭 연구 → 계획 → 실행 → 검증 — 항로를 건너뛰지 마라',
-      '✦ Reviewer는 독립적으로 판단한다 — 편향 없는 별빛',
+      '🧭 discuss → plan → execute → verify → ship — 항로를 건너뛰지 마라',
+      '✦ 각 에이전트는 clean context로 시작한다 — 오염 없는 별빛',
       '⛵ Vela(돛자리)는 하늘에서 가장 큰 별자리의 일부였다',
-      '🔭 research.md → plan.md → approval.json — 항해의 기록',
+      '🔭 context.md → plan.xml → summary.md — 항해의 기록',
       '🧭 /vela:start 로 새로운 항해를 시작하세요',
-      '✦ 같은 세션에서 자기 작업을 검증하면 편향이 생긴다',
+      '✦ 에이전트 간 소통은 파일 기반 — 깨끗한 메시지',
       '⛵ Gate Keeper는 수문장, Gate Guard는 가이드라인',
-      '🌟 approval 없이는 다음 항구로 갈 수 없다',
-      '🔭 Agent Teams — 독립된 선원들이 각자의 관점으로 항해한다',
+      '🌟 태스크 완료 즉시 git commit — 원자적 항해 기록',
+      '🔭 /vela:next — 다음 항구를 자동으로 찾아준다',
       '⛵ 구조로 강제하라, 지시로 의존하지 마라'
     ]
   };
 
   // ─── Startup Announcements ───
   settings.companyAnnouncements = [
-    '⛵ Vela Engine — 별자리가 항해를 안내합니다. /vela:start 로 파이프라인을 시작하세요.',
-    '✦ Vela — 구조로 강제하고, 독립으로 검증하고, 기록으로 추적합니다.',
-    '🧭 Vela Pipeline — 연구 → 계획 → 실행 → 검증. 항로를 따르세요.',
+    '⛵ Vela Engine v4 — /vela:start 로 항해를 시작하고 /vela:next 로 다음 항구로 이동하세요.',
+    '✦ Vela v4 — 파일 기반 소통, clean context, 태스크 단위 원자적 커밋.',
+    '🧭 Vela v4 Pipeline — discuss → plan → execute → verify → ship. 항로를 따르세요.',
     '⛵ 모든 항해에는 별자리가 길을 안내합니다. Vela와 함께.'
   ];
 
@@ -305,6 +305,23 @@ function install() {
 
   writeSettings(settings);
 
+  // ─── Deploy slash commands to ~/.claude/commands/vela/ ───
+  const skillBase = path.resolve(__dirname, '..');
+  const commandsSrc = path.join(skillBase, 'commands');
+  const commandsDst = path.join(HOME, '.claude', 'commands', 'vela');
+  if (fs.existsSync(commandsSrc)) {
+    try {
+      fs.mkdirSync(commandsDst, { recursive: true });
+      const commandFiles = fs.readdirSync(commandsSrc).filter(f => f.endsWith('.md'));
+      for (const file of commandFiles) {
+        fs.copyFileSync(path.join(commandsSrc, file), path.join(commandsDst, file));
+      }
+      installed.push('slash-commands');
+    } catch (e) {
+      errors.push(`slash-commands: ${e.message}`);
+    }
+  }
+
   // Create state directory for session tracking (project-local)
   const stateDir = path.join(PROJECT_ROOT, '.vela', 'state');
   if (!fs.existsSync(stateDir)) {
@@ -325,15 +342,21 @@ function install() {
   // ─── Create CLAUDE.md if not exists ───
   const claudeMdPath = path.join(PROJECT_ROOT, 'CLAUDE.md');
   if (!fs.existsSync(claudeMdPath)) {
-    fs.writeFileSync(claudeMdPath, `# Development Workflow — Vela
+    fs.writeFileSync(claudeMdPath, `# Development Workflow — Vela v4
 
 This project uses Vela for development governance.
 
 - To explore/read code: use normal tools freely (Explore mode).
-- To modify code: ALWAYS start with \`node .vela/cli/vela-engine.js init "<task>" --scale <small|medium|large>\`
-- Follow pipeline steps in order. Do NOT use TaskCreate/TaskUpdate during pipeline execution.
-- Do NOT skip pipeline steps or create your own plans outside the pipeline.
-- Each team step uses Teammate (소통 필요) or Subagent (독립 작업). Model: Haiku(탐색), Sonnet(코딩/리뷰), Opus(설계/분석).
+- To modify code: ALWAYS use Vela pipeline commands:
+  - \`/vela:start\` — 새 작업 시작
+  - \`/vela:discuss N\` — 요구사항 확정
+  - \`/vela:plan N\` — research + plan.xml 생성
+  - \`/vela:execute N\` — Wave 실행 (태스크당 git commit)
+  - \`/vela:verify N\` — 검증
+  - \`/vela:ship N\` — PR 생성
+  - \`/vela:next\` — 다음 단계 자동 감지
+- All agents communicate via files in \`.vela/artifacts/\` (no SendMessage).
+- Each executor subagent commits immediately upon task completion.
 `);
   }
 
@@ -552,40 +575,39 @@ function upgrade() {
     { src: 'scripts/agents/planner.md', dst: 'agents/planner.md' },
     { src: 'scripts/agents/executor.md', dst: 'agents/executor.md' },
     { src: 'scripts/agents/reviewer.md', dst: 'agents/reviewer.md' },
-    { src: 'scripts/agents/leader.md', dst: 'agents/leader.md' },
-    { src: 'scripts/agents/conflict-manager.md', dst: 'agents/conflict-manager.md' },
     { src: 'templates/pipeline.json', dst: 'templates/pipeline.json' },
     { src: 'references/interactive-ui.md', dst: 'references/interactive-ui.md' },
     { src: 'references/gates-and-guards.md', dst: 'references/gates-and-guards.md' },
     { src: 'references/cli-reference.md', dst: 'references/cli-reference.md' },
     { src: 'references/messages-en.md', dst: 'references/messages-en.md' },
-    // Agent tree
+    // PM agent tree
     { src: 'scripts/agents/pm/index.md', dst: 'agents/pm/index.md' },
     { src: 'scripts/agents/pm/prompt-optimizer.md', dst: 'agents/pm/prompt-optimizer.md' },
     { src: 'scripts/agents/pm/pipeline-flow.md', dst: 'agents/pm/pipeline-flow.md' },
     { src: 'scripts/agents/pm/team-rules.md', dst: 'agents/pm/team-rules.md' },
     { src: 'scripts/agents/pm/model-strategy.md', dst: 'agents/pm/model-strategy.md' },
     { src: 'scripts/agents/pm/block-recovery.md', dst: 'agents/pm/block-recovery.md' },
+    { src: 'scripts/agents/pm/git-strategy.md', dst: 'agents/pm/git-strategy.md' },
+    // Researcher
     { src: 'scripts/agents/researcher/index.md', dst: 'agents/researcher/index.md' },
     { src: 'scripts/agents/researcher/hypothesis.md', dst: 'agents/researcher/hypothesis.md' },
     { src: 'scripts/agents/researcher/security.md', dst: 'agents/researcher/security.md' },
     { src: 'scripts/agents/researcher/architecture.md', dst: 'agents/researcher/architecture.md' },
     { src: 'scripts/agents/researcher/quality.md', dst: 'agents/researcher/quality.md' },
+    // Executor
     { src: 'scripts/agents/executor/index.md', dst: 'agents/executor/index.md' },
     { src: 'scripts/agents/executor/tdd.md', dst: 'agents/executor/tdd.md' },
-    { src: 'scripts/agents/executor/file-ownership.md', dst: 'agents/executor/file-ownership.md' },
-    { src: 'scripts/agents/executor/worktree.md', dst: 'agents/executor/worktree.md' },
+    // Planner
     { src: 'scripts/agents/planner/index.md', dst: 'agents/planner/index.md' },
     { src: 'scripts/agents/planner/spec-format.md', dst: 'agents/planner/spec-format.md' },
     { src: 'scripts/agents/planner/crosslayer.md', dst: 'agents/planner/crosslayer.md' },
-    { src: 'scripts/agents/reviewer/index.md', dst: 'agents/reviewer/index.md' },
-    { src: 'scripts/agents/reviewer/scoring.md', dst: 'agents/reviewer/scoring.md' },
-    { src: 'scripts/agents/conflict-manager/index.md', dst: 'agents/conflict-manager/index.md' },
-    { src: 'scripts/agents/conflict-manager/merge-procedure.md', dst: 'agents/conflict-manager/merge-procedure.md' },
-    { src: 'scripts/agents/conflict-manager/interface-watch.md', dst: 'agents/conflict-manager/interface-watch.md' },
+    // Synthesizer (v4 신규)
+    { src: 'scripts/agents/synthesizer/index.md', dst: 'agents/synthesizer/index.md' },
+    // Debugger
     { src: 'scripts/agents/debugger/index.md', dst: 'agents/debugger/index.md' },
     { src: 'scripts/agents/debugger/diagnosis.md', dst: 'agents/debugger/diagnosis.md' },
     { src: 'scripts/agents/debugger/fix-strategy.md', dst: 'agents/debugger/fix-strategy.md' },
+    // Guidelines
     { src: 'scripts/guidelines/index.md', dst: 'guidelines/index.md' },
     { src: 'scripts/guidelines/coding-standards.md', dst: 'guidelines/coding-standards.md' },
     { src: 'scripts/guidelines/error-handling.md', dst: 'guidelines/error-handling.md' },
@@ -633,6 +655,22 @@ function upgrade() {
     }
   }
 
+  // ─── Deploy slash commands to ~/.claude/commands/vela/ ───
+  const commandsSrc = path.join(skillBase, 'commands');
+  const commandsDst = path.join(HOME, '.claude', 'commands', 'vela');
+  if (fs.existsSync(commandsSrc)) {
+    try {
+      fs.mkdirSync(commandsDst, { recursive: true });
+      const commandFiles = fs.readdirSync(commandsSrc).filter(f => f.endsWith('.md'));
+      for (const file of commandFiles) {
+        fs.copyFileSync(path.join(commandsSrc, file), path.join(commandsDst, file));
+        results.updated.push(`~/.claude/commands/vela/${file}`);
+      }
+    } catch (e) {
+      results.errors.push(`commands/vela: ${e.message}`);
+    }
+  }
+
   console.log(JSON.stringify({
     ok: results.errors.length === 0,
     command: 'upgrade',
@@ -655,8 +693,7 @@ function validate() {
     'hooks', 'hooks/shared', 'cli', 'cache', 'templates',
     'state', 'artifacts', 'agents', 'references', 'guidelines',
     'agents/pm', 'agents/researcher', 'agents/executor',
-    'agents/planner', 'agents/reviewer', 'agents/conflict-manager',
-    'agents/debugger'
+    'agents/planner', 'agents/synthesizer', 'agents/debugger'
   ];
   for (const dir of requiredDirs) {
     const dirPath = path.join(velaDir, dir);
@@ -690,38 +727,39 @@ function validate() {
     { src: 'scripts/agents/planner.md', dst: 'agents/planner.md' },
     { src: 'scripts/agents/executor.md', dst: 'agents/executor.md' },
     { src: 'scripts/agents/reviewer.md', dst: 'agents/reviewer.md' },
-    { src: 'scripts/agents/leader.md', dst: 'agents/leader.md' },
-    { src: 'scripts/agents/conflict-manager.md', dst: 'agents/conflict-manager.md' },
     { src: 'templates/pipeline.json', dst: 'templates/pipeline.json' },
     { src: 'templates/config.json', dst: 'templates/config.json' },
     { src: 'references/interactive-ui.md', dst: 'references/interactive-ui.md' },
     { src: 'references/gates-and-guards.md', dst: 'references/gates-and-guards.md' },
     { src: 'references/cli-reference.md', dst: 'references/cli-reference.md' },
     { src: 'references/messages-en.md', dst: 'references/messages-en.md' },
-    // Agent tree structure
+    // PM agent tree
     { src: 'scripts/agents/pm/index.md', dst: 'agents/pm/index.md' },
     { src: 'scripts/agents/pm/prompt-optimizer.md', dst: 'agents/pm/prompt-optimizer.md' },
     { src: 'scripts/agents/pm/pipeline-flow.md', dst: 'agents/pm/pipeline-flow.md' },
     { src: 'scripts/agents/pm/team-rules.md', dst: 'agents/pm/team-rules.md' },
     { src: 'scripts/agents/pm/model-strategy.md', dst: 'agents/pm/model-strategy.md' },
     { src: 'scripts/agents/pm/block-recovery.md', dst: 'agents/pm/block-recovery.md' },
+    { src: 'scripts/agents/pm/git-strategy.md', dst: 'agents/pm/git-strategy.md' },
+    // Researcher
     { src: 'scripts/agents/researcher/index.md', dst: 'agents/researcher/index.md' },
     { src: 'scripts/agents/researcher/hypothesis.md', dst: 'agents/researcher/hypothesis.md' },
     { src: 'scripts/agents/researcher/security.md', dst: 'agents/researcher/security.md' },
     { src: 'scripts/agents/researcher/architecture.md', dst: 'agents/researcher/architecture.md' },
     { src: 'scripts/agents/researcher/quality.md', dst: 'agents/researcher/quality.md' },
+    // Executor
     { src: 'scripts/agents/executor/index.md', dst: 'agents/executor/index.md' },
     { src: 'scripts/agents/executor/tdd.md', dst: 'agents/executor/tdd.md' },
-    { src: 'scripts/agents/executor/file-ownership.md', dst: 'agents/executor/file-ownership.md' },
-    { src: 'scripts/agents/executor/worktree.md', dst: 'agents/executor/worktree.md' },
+    // Planner
     { src: 'scripts/agents/planner/index.md', dst: 'agents/planner/index.md' },
     { src: 'scripts/agents/planner/spec-format.md', dst: 'agents/planner/spec-format.md' },
     { src: 'scripts/agents/planner/crosslayer.md', dst: 'agents/planner/crosslayer.md' },
-    { src: 'scripts/agents/reviewer/index.md', dst: 'agents/reviewer/index.md' },
-    { src: 'scripts/agents/reviewer/scoring.md', dst: 'agents/reviewer/scoring.md' },
-    { src: 'scripts/agents/conflict-manager/index.md', dst: 'agents/conflict-manager/index.md' },
-    { src: 'scripts/agents/conflict-manager/merge-procedure.md', dst: 'agents/conflict-manager/merge-procedure.md' },
-    { src: 'scripts/agents/conflict-manager/interface-watch.md', dst: 'agents/conflict-manager/interface-watch.md' },
+    // Synthesizer (v4 신규)
+    { src: 'scripts/agents/synthesizer/index.md', dst: 'agents/synthesizer/index.md' },
+    // Debugger
+    { src: 'scripts/agents/debugger/index.md', dst: 'agents/debugger/index.md' },
+    { src: 'scripts/agents/debugger/diagnosis.md', dst: 'agents/debugger/diagnosis.md' },
+    { src: 'scripts/agents/debugger/fix-strategy.md', dst: 'agents/debugger/fix-strategy.md' },
     // Guidelines
     { src: 'scripts/guidelines/index.md', dst: 'guidelines/index.md' },
     { src: 'scripts/guidelines/coding-standards.md', dst: 'guidelines/coding-standards.md' },
@@ -767,9 +805,19 @@ function validate() {
     }
   }
 
-  // 4. Clean up old/legacy files
+  // 4. Clean up old/legacy files (v3 → v4 migration)
   const legacyFiles = [
     path.join(velaDir, 'hooks', 'vela-pm.md'),  // old agent name
+    // v3 agents removed in v4
+    path.join(velaDir, 'agents', 'leader.md'),
+    path.join(velaDir, 'agents', 'conflict-manager.md'),
+    path.join(velaDir, 'agents', 'reviewer', 'index.md'),
+    path.join(velaDir, 'agents', 'reviewer', 'scoring.md'),
+    path.join(velaDir, 'agents', 'conflict-manager', 'index.md'),
+    path.join(velaDir, 'agents', 'conflict-manager', 'merge-procedure.md'),
+    path.join(velaDir, 'agents', 'conflict-manager', 'interface-watch.md'),
+    path.join(velaDir, 'agents', 'executor', 'file-ownership.md'),
+    path.join(velaDir, 'agents', 'executor', 'worktree.md'),
   ];
   for (const lf of legacyFiles) {
     if (fs.existsSync(lf)) {
