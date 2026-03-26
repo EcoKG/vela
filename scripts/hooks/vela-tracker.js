@@ -219,7 +219,7 @@ async function main() {
     }
   }
 
-  // ─── Teammate Communication Tracking ───
+  // ─── (v3 legacy — not active in v4 Subagent-only mode) ───
   if (state && tool_name === 'SendMessage') {
     const commPath = path.join(velaDir, 'state', 'teammate-comms.json');
     let comms = [];

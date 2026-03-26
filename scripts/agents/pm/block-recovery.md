@@ -29,7 +29,7 @@
 | VG-07 | 잘못된 단계 git commit | commit 단계에서 실행 |
 | VG-08 | verify 전 push | verify 완료 후 |
 | VG-11 | 비-team 단계 approval | team 단계에서 작성 |
-| VG-12 | PM 직접 소스 수정 | Subagent/Teammate 소환 |
+| VG-12 | PM 직접 소스 수정 | Subagent 소환 |
 
 ## 원칙
 1. **절대 재시도 금지** — 같은 도구+같은 입력은 같은 차단

@@ -5,29 +5,28 @@
 ## TOC — 필요한 섹션만 선택적으로 읽으세요
 1. [역할 개요](#역할-개요) — 항상 읽기
 2. [TDD Sub-Phases](#tdd-sub-phases) — 구현 순서 확인 시 읽기
-3. [파일 소유권](#파일-소유권) — 팀 작업 시 읽기
-4. [Git Worktree](#git-worktree) — 격리 실행 시 읽기
-5. [Communication](#communication) — 보고/소통 시 읽기
+3. [Git Commit](#git-commit) — 커밋 시 읽기
+4. [Communication](#communication) — 보고 시 읽기
 
 ---
 
 ## 역할 개요
 
-plan.md의 Class Specification에 따라 코드를 구현하는 실행자.
-plan.md를 반드시 먼저 읽고, 명세에 맞게 구현한다.
+`{N}-plan.xml`의 Task 명세에 따라 코드를 구현하는 실행자.
+`{N}-plan.xml`을 반드시 먼저 읽고, 명세에 맞게 구현한다.
 TDD 순서(test → implement → refactor)를 따른다.
 
 규칙:
-- plan.md가 설계도. 명세를 벗어나지 않는다
+- `{N}-plan.xml`이 설계도. 명세를 벗어나지 않는다
 - `.vela/` 내부는 아티팩트 디렉토리만 쓰기 가능
-- Reviewer가 plan.md 대비 코드를 비교 평가한다
+- 각 태스크 완료 즉시 git commit한다
 
 ---
 
 ## TDD Sub-Phases
 
 ### Phase 1: test-write (Red)
-plan.md의 Test Strategy에 따라 테스트 작성.
+`{N}-plan.xml`의 Test Strategy에 따라 테스트 작성.
 이 시점에서 테스트는 실패해야 정상 (구현이 없으므로).
 테스트 실행으로 Red 상태 확인 후 다음 단계로.
 
@@ -50,33 +49,21 @@ Architecture 섹션의 레이어 구조에 맞춘다.
 
 ---
 
-## 파일 소유권
+## Git Commit
 
-Teammate로 소환된 경우, 프롬프트에 **담당 파일**이 명시된다.
-담당 파일만 수정하고, 다른 팀원의 파일은 읽기만 한다.
+태스크 완료(테스트 통과) 즉시 커밋:
+```bash
+git add -A
+git commit -m "feat({N}-{M}): {태스크 설명}"
+```
 
-다른 팀원의 파일에 변경이 필요하면:
-- 해당 팀원에게 SendMessage로 요청
-- 직접 수정하지 않는다
-
----
-
-## Git Worktree
-
-`isolation: "worktree"`로 소환된 경우:
-- 격리된 git worktree에서 작업 중
-- 다른 팀원과 파일 시스템이 분리됨
-- 작업 완료 후 Conflict Manager가 병합
+커밋 완료 후 `{N}-{M}-summary.md`에 커밋 해시 기록.
 
 ---
 
-## Communication
+## Communication (Subagent)
 
-**Subagent로 소환된 경우:**
-- 완료 시: "Implementation complete. All tests passing."
+Subagent로 소환된다. 결과는 파일로 출력한다.
 
-**Teammate로 소환된 경우:**
-- 완료 시 PM에게 SendMessage
-- 다른 팀원과 인터페이스 조율 시 SendMessage 활용
-- 예: "API 응답 형식 변경됨. UserDTO에 email 필드 추가. 확인 바람"
-- PM이 reject 시 피드백 받아 수정 후 재전송
+- 태스크별 완료 시: `{N}-{M}-summary.md` 작성 (구현 내용 + 커밋 해시)
+- 전체 완료 시 반환: "Execution complete. All tasks committed."

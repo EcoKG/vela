@@ -79,8 +79,9 @@ if [ "$LOCAL_FLAG" = "--local" ]; then
     # ─── v3 → v4 마이그레이션: 삭제된 디렉토리 정리 ───
     rm -rf .vela/agents/reviewer         2>/dev/null || true
     rm -rf .vela/agents/conflict-manager 2>/dev/null || true
-    rm -f  .vela/agents/leader.md        2>/dev/null || true
-    rm -f  .vela/agents/conflict-manager.md 2>/dev/null || true
+    rm -f  .vela/agents/reviewer.md          2>/dev/null || true
+    rm -f  .vela/agents/leader.md            2>/dev/null || true
+    rm -f  .vela/agents/conflict-manager.md  2>/dev/null || true
     rm -f  .vela/agents/executor/file-ownership.md 2>/dev/null || true
     rm -f  .vela/agents/executor/worktree.md       2>/dev/null || true
     echo "   ✓ v3 legacy agents removed"

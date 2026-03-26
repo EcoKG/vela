@@ -1,4 +1,4 @@
-# plan.md 필수 섹션 — 하나라도 빠지면 엔진이 transition을 차단한다
+# plan.xml 필수 섹션 — 하나라도 빠지면 엔진이 transition을 차단한다
 
 ## ## Architecture (200bytes 이상, 필수)
 - 레이어 구조 (Domain, Application, Infrastructure, Interface)
@@ -16,7 +16,7 @@
 - unit / integration / e2e 커버리지
 - 엣지 케이스
 
-## ## Task Distribution (Teammate 사용 시, 필수)
-- 팀원별 담당 파일/디렉토리
-- 팀원별 5~6개 태스크 목록
-- 인터페이스 경계 (팀원 간 의존 지점)
+## ## Tasks (필수)
+- `<task id wave depends>` XML 구조
+- Wave 기반 병렬 실행 가능한 태스크 그룹
+- `<done>`에 `{N}-{id}-summary.md 작성` 반드시 포함

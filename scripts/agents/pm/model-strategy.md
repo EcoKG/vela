@@ -15,8 +15,6 @@
 | Researcher | `"opus"` | 경쟁가설 디버깅에 깊은 분석 필수 |
 | Planner | `"opus"` | 아키텍처 설계에 깊은 사고 필수 |
 | Executor | `"sonnet"` | 코딩 품질 + 비용 효율 |
-| Reviewer | `"sonnet"` | 코드 리뷰 |
-| Conflict Manager | `"sonnet"` | 충돌 관리 |
 | Debugger | `"opus"` | 근본 원인 분석 |
 | 탐색 전용 | `"haiku"` | 빠른 파일 탐색 |
 

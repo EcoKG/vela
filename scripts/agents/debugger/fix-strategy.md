@@ -3,7 +3,7 @@
 ## 컴파일/타입 에러
 1. 에러 메시지의 파일:라인 확인
 2. 타입 정의와 실제 사용 비교
-3. plan.md의 Class Specification에 정의된 타입으로 수정
+3. {N}-plan.xml의 Class Specification에 정의된 타입으로 수정
 4. 누락 import 추가
 
 ## 런타임 에러
@@ -14,7 +14,7 @@
 
 ## 테스트 실패
 1. 기대값과 실제값 비교
-2. plan.md의 Test Strategy와 대조
+2. {N}-plan.xml의 Test Strategy와 대조
 3. 테스트 자체가 올바른지 확인 (테스트 버그 가능)
 4. 모킹이 올바르게 설정되었는지 확인
 

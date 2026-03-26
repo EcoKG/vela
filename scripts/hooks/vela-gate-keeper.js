@@ -135,7 +135,7 @@ async function main() {
 
   // ─── GATE 2.5: PM Source Code Access Prohibition ───
   // PM(본체)은 소스 코드에 절대 직접 접근하지 않는다.
-  // 모든 소스 코드 읽기/쓰기는 반드시 Subagent 또는 Teammate에 위임한다.
+  // 모든 소스 코드 읽기/쓰기는 반드시 Subagent에 위임한다.
   // 예외: trivial 파이프라인 (PM 직접 수행), .vela/ 내부 파일, 설정 파일
   const ALL_CODE_TOOLS = new Set([...WRITE_TOOLS, 'Read', 'Glob', 'Grep']);
   if (ALL_CODE_TOOLS.has(tool_name)) {
@@ -159,7 +159,7 @@ async function main() {
           process.stderr.write(
             `⛵ [Vela] ✦ BLOCKED [VK-07]: PM은 소스 코드를 직접 탐색할 수 없습니다.\n` +
             `  Tool: ${tool_name}\n` +
-            `  이 작업은 반드시 Subagent 또는 Teammate에 위임해야 합니다.\n` +
+            `  이 작업은 반드시 Subagent에 위임해야 합니다.\n` +
             `  Recovery: Agent 도구로 적절한 에이전트를 소환하세요.\n` +
             `  - 파일 탐색 → Subagent (model: "haiku")\n` +
             `  - 코드 분석 → Subagent (model: "opus")\n` +
@@ -180,12 +180,12 @@ async function main() {
             process.stderr.write(
               `⛵ [Vela] ✦ BLOCKED [VK-07]: PM은 소스 코드에 직접 접근할 수 없습니다.\n` +
               `  Tool: ${tool_name} | File: ${targetFile}\n` +
-              `  이 작업은 반드시 Subagent 또는 Teammate에 위임해야 합니다.\n` +
+              `  이 작업은 반드시 Subagent에 위임해야 합니다.\n` +
               `  Recovery: Agent 도구로 에이전트를 소환하세요.\n` +
               `  - 파일 읽기/탐색 → Subagent (model: "haiku")\n` +
               `  - 코드 분석 → Subagent (model: "opus")\n` +
               `  - 코드 구현 → Subagent (model: "sonnet")\n` +
-              `  - 다중 파일 수정 → Teammate (model: "sonnet", isolation: "worktree")`
+              `  - 다중 파일 수정 → Subagent (model: "sonnet")`
             );
             process.exit(2);
           }

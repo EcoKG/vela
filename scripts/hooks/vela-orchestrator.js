@@ -11,7 +11,7 @@
  * 2. Show allowed next actions
  * 3. Detect crashed/stale pipelines and offer recovery
  * 4. Display session health on first prompt
- * 5. Inject team context during team steps (Teammate/Subagent roles)
+ * 5. Inject agent context during pipeline steps (Subagent roles)
  */
 
 const fs = require('fs');

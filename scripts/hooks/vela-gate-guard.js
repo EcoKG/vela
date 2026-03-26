@@ -191,7 +191,7 @@ async function main() {
 
     // ─── GUARD 12: PM must delegate source edits in execute step ───
     // PM should not directly write source code during execute step.
-    // Subagents/Teammates must do the actual implementation.
+    // Subagents must do the actual implementation.
     // Delegation is signaled by .vela/state/delegation.json existing.
     if (executeReached && currentStep === 'execute') {
       const delegationPath = path.join(velaDir, 'state', 'delegation.json');
@@ -200,9 +200,9 @@ async function main() {
         process.stderr.write(
           `🌟 [Vela] ✦ BLOCKED [VG-12]: PM direct source modification in execute step.\n` +
           `  File: ${targetFile}\n` +
-          `  Recovery: Spawn a Subagent or Teammate to implement the code.\n` +
+          `  Recovery: Spawn a Subagent to implement the code.\n` +
           `  - Single module  → Subagent (Sonnet)\n` +
-          `  - Multi-file     → Teammate (Sonnet) with worktree isolation\n` +
+          `  - Multi-file     → Subagent (Sonnet)\n` +
           `  Delegation activates automatically when a SubAgent is started.`
         );
         process.exit(2);

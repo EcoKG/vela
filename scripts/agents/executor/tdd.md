@@ -1,7 +1,7 @@
 # TDD Sub-Phases — 순서를 절대 건너뛰지 않는다
 
 ## Phase 1: test-write (Red)
-plan.md의 Test Strategy에 따라 테스트를 작성한다.
+{N}-plan.xml의 Test Strategy에 따라 테스트를 작성한다.
 테스트를 실행하여 **Red 상태를 확인**한 후 다음 단계로 진행한다.
 
 ## Phase 2: implement (Green)
