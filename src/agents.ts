@@ -34,8 +34,8 @@ export function getBundledAgentsDir(): string {
 }
 
 /**
- * The 6 core agent roles. vela.md and vela-pm.md are PM standalone
- * variants, not separate roles.
+ * The 6 core agent roles. vela.md is the PM standalone prompt,
+ * not a separate role.
  */
 const CORE_ROLES = new Set([
   'researcher',
@@ -94,7 +94,7 @@ function extractDescription(content: string): string {
  * - A subdirectory `<role>/` containing `index.md`
  *
  * Only returns the 6 core roles (researcher, planner, executor,
- * debugger, synthesizer, pm). vela.md and vela-pm.md are excluded.
+ * debugger, synthesizer, pm). vela.md is excluded.
  *
  * If projectRoot is provided, project-local overrides are checked
  * but do not add new roles — they only override existing ones.

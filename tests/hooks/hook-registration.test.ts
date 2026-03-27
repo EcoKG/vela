@@ -27,21 +27,16 @@ afterEach(() => {
 
 describe('hook-registration', () => {
   describe('getHookDefinitions', () => {
-    it('returns definitions for gate-keeper, gate-guard, and tracker', () => {
+    it('returns definitions for vela-gate and tracker', () => {
       const defs = getHookDefinitions(tmpDir);
-      expect(defs).toHaveLength(3);
+      expect(defs).toHaveLength(2);
 
-      const keeper = defs.find((d) => d.hookId === 'gate-keeper');
-      expect(keeper).toBeDefined();
-      expect(keeper!.event).toBe('PreToolUse');
-      expect(keeper!.matcher).toBe('');
-      expect(keeper!.scriptPath).toContain(path.join('.vela', 'hooks', 'gate-keeper.cjs'));
-      expect(keeper!.statusMessage).toBeTruthy();
-
-      const guard = defs.find((d) => d.hookId === 'gate-guard');
-      expect(guard).toBeDefined();
-      expect(guard!.event).toBe('PreToolUse');
-      expect(guard!.scriptPath).toContain(path.join('.vela', 'hooks', 'gate-guard.cjs'));
+      const gate = defs.find((d) => d.hookId === 'vela-gate');
+      expect(gate).toBeDefined();
+      expect(gate!.event).toBe('PreToolUse');
+      expect(gate!.matcher).toBe('');
+      expect(gate!.scriptPath).toContain(path.join('.vela', 'hooks', 'vela-gate.cjs'));
+      expect(gate!.statusMessage).toBeTruthy();
 
       const tracker = defs.find((d) => d.hookId === 'tracker');
       expect(tracker).toBeDefined();
@@ -51,23 +46,21 @@ describe('hook-registration', () => {
   });
 
   describe('copyHookScripts', () => {
-    it('copies gate-keeper, gate-guard, and shared modules to .vela/hooks/', () => {
+    it('copies vela-gate, tracker, and shared modules to .vela/hooks/', () => {
       // Ensure .vela/ exists
       fs.mkdirSync(path.join(tmpDir, '.vela'), { recursive: true });
 
       const copied = copyHookScripts(tmpDir);
 
-      // Should copy 5 files
-      expect(copied.length).toBe(5);
-      expect(copied).toContain(path.join('.vela', 'hooks', 'gate-keeper.cjs'));
-      expect(copied).toContain(path.join('.vela', 'hooks', 'gate-guard.cjs'));
+      // Should copy 4 files
+      expect(copied.length).toBe(4);
+      expect(copied).toContain(path.join('.vela', 'hooks', 'vela-gate.cjs'));
       expect(copied).toContain(path.join('.vela', 'hooks', 'tracker.cjs'));
       expect(copied).toContain(path.join('.vela', 'hooks', 'shared', 'constants.cjs'));
       expect(copied).toContain(path.join('.vela', 'hooks', 'shared', 'pipeline.cjs'));
 
       // Verify files exist on disk
-      expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'gate-keeper.cjs'))).toBe(true);
-      expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'gate-guard.cjs'))).toBe(true);
+      expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'vela-gate.cjs'))).toBe(true);
       expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'tracker.cjs'))).toBe(true);
       expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'shared', 'constants.cjs'))).toBe(true);
       expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'shared', 'pipeline.cjs'))).toBe(true);
@@ -83,13 +76,13 @@ describe('hook-registration', () => {
 
     it('overwrites existing files (upgrade path)', () => {
       fs.mkdirSync(path.join(tmpDir, '.vela', 'hooks', 'shared'), { recursive: true });
-      fs.writeFileSync(path.join(tmpDir, '.vela', 'hooks', 'gate-keeper.cjs'), 'old content');
+      fs.writeFileSync(path.join(tmpDir, '.vela', 'hooks', 'vela-gate.cjs'), 'old content');
 
       copyHookScripts(tmpDir);
 
-      const content = fs.readFileSync(path.join(tmpDir, '.vela', 'hooks', 'gate-keeper.cjs'), 'utf-8');
+      const content = fs.readFileSync(path.join(tmpDir, '.vela', 'hooks', 'vela-gate.cjs'), 'utf-8');
       expect(content).not.toBe('old content');
-      expect(content).toContain('Gate Keeper');
+      expect(content).toContain('Vela Gate');
     });
   });
 
@@ -104,7 +97,7 @@ describe('hook-registration', () => {
       const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
       expect(settings.hooks).toBeDefined();
       expect(settings.hooks.PreToolUse).toBeDefined();
-      expect(settings.hooks.PreToolUse).toHaveLength(2);
+      expect(settings.hooks.PreToolUse).toHaveLength(1);
     });
 
     it('registers hooks with correct Claude Code format', () => {
@@ -115,15 +108,15 @@ describe('hook-registration', () => {
         fs.readFileSync(path.join(tmpDir, '.claude', 'settings.local.json'), 'utf-8'),
       );
 
-      const keeperEntry = settings.hooks.PreToolUse.find(
-        (e: any) => e.hooks && e.hooks[0]?.command?.includes('gate-keeper'),
+      const gateEntry = settings.hooks.PreToolUse.find(
+        (e: any) => e.hooks && e.hooks[0]?.command?.includes('vela-gate'),
       );
-      expect(keeperEntry).toBeDefined();
-      expect(keeperEntry.matcher).toBe('');
-      expect(keeperEntry.hooks).toHaveLength(1);
-      expect(keeperEntry.hooks[0].type).toBe('command');
-      expect(keeperEntry.hooks[0].command).toMatch(/^node ".+gate-keeper\.cjs"$/);
-      expect(keeperEntry.hooks[0].statusMessage).toBeTruthy();
+      expect(gateEntry).toBeDefined();
+      expect(gateEntry.matcher).toBe('');
+      expect(gateEntry.hooks).toHaveLength(1);
+      expect(gateEntry.hooks[0].type).toBe('command');
+      expect(gateEntry.hooks[0].command).toMatch(/^node ".+vela-gate\.cjs"$/);
+      expect(gateEntry.hooks[0].statusMessage).toBeTruthy();
     });
 
     it('is idempotent — re-running does not create duplicate entries', () => {
@@ -137,7 +130,7 @@ describe('hook-registration', () => {
         fs.readFileSync(path.join(tmpDir, '.claude', 'settings.local.json'), 'utf-8'),
       );
 
-      expect(settings.hooks.PreToolUse).toHaveLength(2);
+      expect(settings.hooks.PreToolUse).toHaveLength(1);
     });
 
     it('preserves existing non-Vela hooks', () => {
@@ -167,8 +160,8 @@ describe('hook-registration', () => {
         fs.readFileSync(path.join(claudeDir, 'settings.local.json'), 'utf-8'),
       );
 
-      // 1 custom + 2 Vela = 3
-      expect(settings.hooks.PreToolUse).toHaveLength(3);
+      // 1 custom + 1 Vela = 2
+      expect(settings.hooks.PreToolUse).toHaveLength(2);
       const customHook = settings.hooks.PreToolUse.find(
         (e: any) => e.hooks?.[0]?.command === 'node my-custom-hook.js',
       );
@@ -206,7 +199,7 @@ describe('hook-registration', () => {
       registerHooks(tmpDir);
 
       const removed = unregisterHooks(tmpDir);
-      expect(removed).toBe(3);
+      expect(removed).toBe(2);
 
       const settings = JSON.parse(
         fs.readFileSync(path.join(tmpDir, '.claude', 'settings.local.json'), 'utf-8'),
@@ -273,8 +266,7 @@ describe('initProject with hooks', () => {
 
     // Hooks should be registered
     expect(result.hooksRegistered).toBeDefined();
-    expect(result.hooksRegistered).toContain('gate-keeper');
-    expect(result.hooksRegistered).toContain('gate-guard');
+    expect(result.hooksRegistered).toContain('vela-gate');
 
     // settings.local.json should exist with hook entries
     const settingsPath = path.join(tmpDir, '.claude', 'settings.local.json');
@@ -282,7 +274,7 @@ describe('initProject with hooks', () => {
 
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
     expect(settings.hooks?.PreToolUse).toBeDefined();
-    expect(settings.hooks.PreToolUse.length).toBe(2);
+    expect(settings.hooks.PreToolUse.length).toBe(1);
   });
 
   it('re-registers hooks on re-init (idempotent)', () => {
@@ -291,13 +283,12 @@ describe('initProject with hooks', () => {
 
     expect(result.ok).toBe(true);
     expect(result.alreadyInitialized).toBe(true);
-    expect(result.hooksRegistered).toContain('gate-keeper');
-    expect(result.hooksRegistered).toContain('gate-guard');
+    expect(result.hooksRegistered).toContain('vela-gate');
 
     // No duplicate entries
     const settings = JSON.parse(
       fs.readFileSync(path.join(tmpDir, '.claude', 'settings.local.json'), 'utf-8'),
     );
-    expect(settings.hooks.PreToolUse).toHaveLength(2);
+    expect(settings.hooks.PreToolUse).toHaveLength(1);
   });
 });

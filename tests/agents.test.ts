@@ -121,11 +121,10 @@ describe('listAgentRoles', () => {
     }
   });
 
-  it('excludes vela.md and vela-pm.md from roles list', () => {
+  it('excludes vela.md from roles list', () => {
     const roles = listAgentRoles();
     const names = roles.map((r) => r.name);
     expect(names).not.toContain('vela');
-    expect(names).not.toContain('vela-pm');
   });
 });
 

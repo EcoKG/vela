@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 /**
- * Enable sandbox in the config so gate-keeper enforces gates.
+ * Enable sandbox in the config so vela-gate enforces sandbox gates.
  */
 function enableSandbox(cwd: string): void {
   const configPath = path.join(cwd, '.vela', 'config.json');
@@ -35,7 +35,7 @@ function enableSandbox(cwd: string): void {
 }
 
 /**
- * Enable gate_guard in the config so gate-guard enforces guards.
+ * Enable gate_guard in the config so vela-gate enforces guards.
  */
 function enableGateGuard(cwd: string): void {
   const configPath = path.join(cwd, '.vela', 'config.json');
@@ -83,7 +83,7 @@ function getHookPath(cwd: string, hookId: string): string {
   for (const entry of entries) {
     for (const hook of entry.hooks ?? []) {
       if (hook.command?.includes(`${hookId}.cjs`)) {
-        // Command is: node "/path/to/gate-keeper.cjs"
+        // Command is: node "/path/to/vela-gate.cjs"
         const match = hook.command.match(/node\s+"([^"]+)"/);
         return match ? match[1] : '';
       }
@@ -98,8 +98,7 @@ describe('hook integration', () => {
       const result = initProject(tmpDir);
       expect(result.ok).toBe(true);
 
-      expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'gate-keeper.cjs'))).toBe(true);
-      expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'gate-guard.cjs'))).toBe(true);
+      expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'vela-gate.cjs'))).toBe(true);
       expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'shared', 'constants.cjs'))).toBe(true);
       expect(fs.existsSync(path.join(tmpDir, '.vela', 'hooks', 'shared', 'pipeline.cjs'))).toBe(true);
     });
@@ -112,22 +111,19 @@ describe('hook integration', () => {
 
       const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
       expect(settings.hooks).toBeDefined();
-      expect(settings.hooks.PreToolUse).toHaveLength(2);
+      expect(settings.hooks.PreToolUse).toHaveLength(1);
 
-      // Verify hook commands point to the project's .vela/hooks/ directory
-      const keeperPath = getHookPath(tmpDir, 'gate-keeper');
-      const guardPath = getHookPath(tmpDir, 'gate-guard');
+      // Verify hook command points to the project's .vela/hooks/ directory
+      const gatePath = getHookPath(tmpDir, 'vela-gate');
 
-      expect(keeperPath).toContain(path.join(tmpDir, '.vela', 'hooks', 'gate-keeper.cjs'));
-      expect(guardPath).toContain(path.join(tmpDir, '.vela', 'hooks', 'gate-guard.cjs'));
+      expect(gatePath).toContain(path.join(tmpDir, '.vela', 'hooks', 'vela-gate.cjs'));
 
-      // Verify the hook scripts at those paths actually exist
-      expect(fs.existsSync(keeperPath)).toBe(true);
-      expect(fs.existsSync(guardPath)).toBe(true);
+      // Verify the hook script at that path actually exists
+      expect(fs.existsSync(gatePath)).toBe(true);
     });
   });
 
-  describe('installed gate-keeper blocks secrets (VK-06)', () => {
+  describe('installed vela-gate blocks secrets (VK-06)', () => {
     it('blocks writes containing secret patterns', () => {
       initProject(tmpDir);
       enableSandbox(tmpDir);
@@ -170,10 +166,10 @@ describe('hook integration', () => {
         JSON.stringify({ delegated: true }),
       );
 
-      const keeperPath = getHookPath(tmpDir, 'gate-keeper');
-      expect(keeperPath).toBeTruthy();
+      const gatePath = getHookPath(tmpDir, 'vela-gate');
+      expect(gatePath).toBeTruthy();
 
-      const result = invokeHook(keeperPath, {
+      const result = invokeHook(gatePath, {
         tool_name: 'Write',
         tool_input: {
           file_path: 'src/config.ts',
@@ -187,12 +183,12 @@ describe('hook integration', () => {
     });
   });
 
-  describe('installed gate-keeper allows clean writes', () => {
+  describe('installed vela-gate allows clean writes', () => {
     it('allows writes with no secrets and readwrite mode', () => {
       initProject(tmpDir);
       enableSandbox(tmpDir);
 
-      // Set up a pipeline in readwrite mode so gate-keeper doesn't block on mode
+      // Set up a pipeline in readwrite mode so vela-gate doesn't block on mode
       const velaDir = path.join(tmpDir, '.vela');
       const artDir = path.join(velaDir, 'artifacts', '2026-01-01_001_test');
       fs.mkdirSync(artDir, { recursive: true });
@@ -229,8 +225,8 @@ describe('hook integration', () => {
         JSON.stringify({ delegated: true }),
       );
 
-      const keeperPath = getHookPath(tmpDir, 'gate-keeper');
-      const result = invokeHook(keeperPath, {
+      const gatePath = getHookPath(tmpDir, 'vela-gate');
+      const result = invokeHook(gatePath, {
         tool_name: 'Write',
         tool_input: {
           file_path: 'src/app.ts',
@@ -243,15 +239,15 @@ describe('hook integration', () => {
     });
   });
 
-  describe('installed gate-guard blocks writes without pipeline (VG-EXPLORE)', () => {
+  describe('installed vela-gate blocks writes without pipeline (VG-EXPLORE)', () => {
     it('blocks Write tool when no active pipeline exists', () => {
       initProject(tmpDir);
       enableGateGuard(tmpDir);
 
-      const guardPath = getHookPath(tmpDir, 'gate-guard');
-      expect(guardPath).toBeTruthy();
+      const gatePath = getHookPath(tmpDir, 'vela-gate');
+      expect(gatePath).toBeTruthy();
 
-      const result = invokeHook(guardPath, {
+      const result = invokeHook(gatePath, {
         tool_name: 'Write',
         tool_input: {
           file_path: 'src/app.ts',
@@ -273,18 +269,14 @@ describe('hook integration', () => {
       const settingsPath = path.join(tmpDir, '.claude', 'settings.local.json');
       const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
 
-      expect(settings.hooks.PreToolUse).toHaveLength(2);
+      expect(settings.hooks.PreToolUse).toHaveLength(1);
 
-      // Verify exactly one gate-keeper and one gate-guard
-      const keeperEntries = settings.hooks.PreToolUse.filter(
-        (e: any) => e.hooks?.some((h: any) => h.command?.includes('gate-keeper')),
-      );
-      const guardEntries = settings.hooks.PreToolUse.filter(
-        (e: any) => e.hooks?.some((h: any) => h.command?.includes('gate-guard')),
+      // Verify exactly one vela-gate entry
+      const gateEntries = settings.hooks.PreToolUse.filter(
+        (e: any) => e.hooks?.some((h: any) => h.command?.includes('vela-gate')),
       );
 
-      expect(keeperEntries).toHaveLength(1);
-      expect(guardEntries).toHaveLength(1);
+      expect(gateEntries).toHaveLength(1);
     });
   });
 
@@ -296,11 +288,11 @@ describe('hook integration', () => {
       const settingsBefore = JSON.parse(
         fs.readFileSync(path.join(tmpDir, '.claude', 'settings.local.json'), 'utf-8'),
       );
-      expect(settingsBefore.hooks?.PreToolUse).toHaveLength(2);
+      expect(settingsBefore.hooks?.PreToolUse).toHaveLength(1);
 
       // Unregister
       const removed = unregisterHooks(tmpDir);
-      expect(removed).toBe(3);
+      expect(removed).toBe(2);
 
       // Verify hooks are gone
       const settingsAfter = JSON.parse(

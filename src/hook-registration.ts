@@ -14,7 +14,7 @@ export interface HookDefinition {
   scriptPath: string;
   /** Status message shown in the Claude Code spinner. */
   statusMessage: string;
-  /** Identifier used for deduplication (e.g. 'gate-keeper'). */
+  /** Identifier used for deduplication (e.g. 'vela-gate'). */
   hookId: string;
 }
 
@@ -40,7 +40,7 @@ interface ClaudeSettings {
 }
 
 /** Vela hook ID prefix for matching during deduplication. */
-const HOOK_PREFIX = 'gate-';
+const HOOK_PREFIX = 'vela-';
 
 /**
  * Returns the directory where bundled hook scripts live inside the
@@ -59,7 +59,8 @@ function getBundledHooksDir(): string {
 
 /**
  * Returns the hook definitions that vela init should register.
- * For S01 scope: gate-keeper (PreToolUse) and gate-guard (PreToolUse).
+ * PreToolUse: vela-gate (unified sandbox + pipeline compliance).
+ * PostToolUse: tracker.
  */
 export function getHookDefinitions(projectRoot: string): HookDefinition[] {
   const hooksDir = path.join(projectRoot, '.vela', 'hooks');
@@ -68,16 +69,9 @@ export function getHookDefinitions(projectRoot: string): HookDefinition[] {
     {
       event: 'PreToolUse',
       matcher: '',
-      scriptPath: path.join(hooksDir, 'gate-keeper.cjs'),
+      scriptPath: path.join(hooksDir, 'vela-gate.cjs'),
       statusMessage: '⛵ Checking harbor clearance...',
-      hookId: 'gate-keeper',
-    },
-    {
-      event: 'PreToolUse',
-      matcher: '',
-      scriptPath: path.join(hooksDir, 'gate-guard.cjs'),
-      statusMessage: '🌟 Verifying navigation chart...',
-      hookId: 'gate-guard',
+      hookId: 'vela-gate',
     },
     {
       event: 'PostToolUse',
@@ -94,8 +88,8 @@ export function getHookDefinitions(projectRoot: string): HookDefinition[] {
  * `.vela/hooks/` directory.
  *
  * Files copied:
- * - gate-keeper.cjs
- * - gate-guard.cjs
+ * - vela-gate.cjs
+ * - tracker.cjs
  * - shared/constants.cjs
  * - shared/pipeline.cjs
  *
@@ -111,8 +105,7 @@ export function copyHookScripts(projectRoot: string): string[] {
   fs.mkdirSync(sharedDst, { recursive: true });
 
   const filesToCopy = [
-    { src: 'gate-keeper.cjs', dst: 'gate-keeper.cjs' },
-    { src: 'gate-guard.cjs', dst: 'gate-guard.cjs' },
+    { src: 'vela-gate.cjs', dst: 'vela-gate.cjs' },
     { src: 'tracker.cjs', dst: 'tracker.cjs' },
     { src: path.join('shared', 'constants.cjs'), dst: path.join('shared', 'constants.cjs') },
     { src: path.join('shared', 'pipeline.cjs'), dst: path.join('shared', 'pipeline.cjs') },
