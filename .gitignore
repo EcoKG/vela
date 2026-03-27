@@ -45,3 +45,5 @@ tmp/
 
 # ── bg-shell ──
 .bg-shell/
+# Vela (auto-managed)
+.vela/
