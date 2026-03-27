@@ -1,7 +1,47 @@
 node_modules/
-*.vela-tmp
-.vela/cache/vela-cache.db
+
+# ── Build output ──
+dist/
+*.tgz
+
+# ── GSD (if used) ──
+.gsd/
+
+# ── IDE / OS ──
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+
+# ── Environment ──
+.env
+.env.*
+!.env.example
+
+# ── Misc build ──
+.next/
+build/
+__pycache__/
+*.pyc
+.venv/
+venv/
+target/
+vendor/
+*.log
+coverage/
+.cache/
+tmp/
+
+# ── Vela runtime (not source) ──
+.vela/cache/
 .vela/state/
 .vela/artifacts/
 .vela/tracker-signals.json
 .vela/write-log.jsonl
+
+# ── bg-shell ──
+.bg-shell/

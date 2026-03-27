@@ -1,442 +1,312 @@
-# ⛵ Vela Engine v2.0 — Sandbox Development System
-
-**Vela**(돛자리)는 Claude Code를 완전히 감싸는 샌드박스 엔진이다.
-Claude Code는 독자적으로 작동할 수 없으며, 모든 행위는 Vela의 파이프라인을 통해서만 진행된다.
-
----
-
-## 사상 (Philosophy)
-
-### 1. ⛵ 통제된 자유 (Controlled Autonomy)
-AI 코딩 도구는 강력하지만, 통제 없는 자유는 위험하다. Vela는 **"언제, 어떤 순서로, 누구의 검증을 거쳐 할 수 있는가"**를 강제한다.
-
-### 2. 🌟 이중 방어 (Defense in Depth)
-- **Gate Keeper** + **Gate Guard** — 훅 레벨 이중 차단
-- **Reviewer** (독립 subagent) — 편향 없는 독립 평가
-- **Permission deny** + **Hook exit(2)** — 시스템 + 코드 레벨
-- **GUARD 0**: 파이프라인 중 TaskCreate 차단
-- **pipeline-state.json 보호**: 직접 수정 불가
-
-### 3. 🔭 추적 가능한 개발 (Traceable Development)
-산출물(research.md, plan.md, review-*.md, approval-*.json), git 커밋에 파이프라인 참조, TreeNode 캐시.
-
-### 4. ✦ 구조로 강제 (Enforce by Structure)
-지시는 무시된다. 산출물이 없으면 전이 차단. approval 없으면 다음 단계 불가. `--scale` 미지정 시 init 거부.
+<p align="center">
+  <br />
+  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/Vela_IAU.svg/280px-Vela_IAU.svg.png" alt="Vela Constellation" width="160" />
+  <br />
+  <br />
+  <strong>⛵ Vela</strong>
+  <br />
+  <em>Development Governance Engine for AI Coding Agents</em>
+  <br />
+  <br />
+  <a href="#quick-start">Quick Start</a> · <a href="#why-vela">Why Vela</a> · <a href="#architecture">Architecture</a> · <a href="#commands">Commands</a> · <a href="#hooks--enforcement">Hooks</a>
+  <br />
+  <br />
+</p>
 
 ---
 
-## 빠른 시작
+> **Vela** (돛자리, the Sail) — 하늘에서 가장 큰 별자리의 일부였던 돛자리처럼,
+> AI 코딩 에이전트의 모든 행위에 **방향**을 부여합니다.
 
-### 1. 설치
+AI 코딩 도구는 강력하지만, 방향 없는 힘은 위험합니다.
+Vela는 **"언제, 어떤 순서로, 어떤 검증을 거쳐"** 코드를 작성할 수 있는지를 — 프롬프트가 아닌 **구조로** — 강제합니다.
+
+```
+지시는 무시될 수 있다. 구조는 우회할 수 없다.
+```
+
+## Why Vela
+
+| 문제 | Vela의 답 |
+|------|-----------|
+| AI가 파이프라인 단계를 건너뛴다 | **Hook enforcement** — 리서치 없이 plan 불가, plan 없이 코드 수정 불가 |
+| 시크릿이 코드에 노출된다 | **15가지 패턴 실시간 감지** — API key, JWT, DB URL 즉시 차단 |
+| .env를 직접 수정한다 | **민감 파일 보호** — .env, credentials.json, id_rsa 쓰기 차단 |
+| 테스트 실패인데 커밋한다 | **빌드/테스트 게이트** — 실패 시 commit 불가 |
+| 변경 사항을 추적할 수 없다 | **파이프라인 산출물** — research.md → plan.md → verification.md, trace.jsonl |
+| 에이전트 규모 조절이 안 된다 | **적응적 에이전트 전략** — small(solo) / medium(scout) / large(role-separation) |
+
+## Quick Start
 
 ```bash
-# npm 글로벌 설치
-npm install -g @ecokg/vela
+# 1. Install globally
+npm install -g vela-cli
 
-# 또는 npx로 바로 사용
-npx @ecokg/vela init
+# 2. Initialize in your project
+cd your-project
+vela init
+
+# 3. Start a pipeline
+vela start "Add OAuth2 authentication" --scale large
 ```
 
-### 2. 프로젝트에서 사용
+그게 전부입니다. Vela가 Claude Code hooks에 자동 등록되고, 이후 모든 AI 코딩 행위에 거버넌스가 적용됩니다.
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      ⛵  V E L A                            │
+│                                                             │
+│   ⛵ Gate Keeper        🌟 Gate Guard       🧭 Orchestrator │
+│   R/W mode enforcement  Pipeline ordering   State injection │
+│                                                             │
+│   ┌─────────────────────────────────────────────────────┐   │
+│   │  P I P E L I N E                                    │   │
+│   │                                                     │   │
+│   │  init → research → plan → checkpoint → branch       │   │
+│   │       → execute → verify → commit → finalize        │   │
+│   └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│   🔭 Tracker              ✦ TUI Dashboard                  │
+│   trace.jsonl logging     Real-time pipeline status         │
+│                                                             │
+│   🤖 Adaptive Agents                                       │
+│   6 roles × 26 prompts   solo / scout / role-separation    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### TypeScript. SQLite. Zero Runtime Dependencies.
+
+- **Language:** TypeScript (strict, ESM, `moduleResolution: nodenext`)
+- **State:** SQLite via better-sqlite3 — pipelines, milestones, slices, tasks
+- **TUI:** Ink v6 + React 19 — real-time dashboard with `vela tui`
+- **Hooks:** Claude Code hooks (PreToolUse, PostToolUse, UserPromptSubmit, Stop, SessionStart, Compact, SubagentStart, TaskCompleted)
+- **Test:** Vitest — **589 tests passing**
+
+### 3-Tier Hierarchy
+
+```
+Milestone                  ← 프로젝트 단위
+  └── Slice                ← 기능 단위 (demoable vertical increment)
+       └── Task            ← 작업 단위 (cascading completion)
+```
+
+Task 완료 → Slice 자동 완료 → Milestone 자동 완료. 상위 구조를 수동으로 관리할 필요 없습니다.
+
+## Commands
+
+### Core Pipeline
 
 ```bash
-# CLI로 사용
-vela init                                    # 프로젝트에 Vela 설치
-vela start "OAuth 인증 추가" --scale large   # 파이프라인 시작
-vela status                                  # 상태 확인
-vela history                                 # 히스토리
-
-# Claude Code에서 사용
-/vela                                        # 대화형 시작
-/vela start OAuth 인증 추가                   # 직접 시작
+vela init                          # .vela/ scaffold + hook registration
+vela start "<task>" --scale <size> # Start pipeline (small|medium|large)
+vela state                         # Current pipeline status (JSON)
+vela transition                    # Advance to next step
+vela cancel                        # Cancel active pipeline
 ```
 
-### 3. CLI 명령어
+### Hierarchy
 
 ```bash
-vela init [dir]              # Vela 설치
-vela start "task" [--scale]  # 파이프라인 시작 (small|medium|large|ralph|hotfix)
-vela status                  # 현재 파이프라인 상태
-vela upgrade                 # 최신 버전으로 갱신
-vela history                 # 실행 히스토리
-vela cancel                  # 파이프라인 취소
-vela report [--html file]    # 리포트 생성
+vela milestone create|list|complete
+vela slice create|list|complete|boundary
+vela task create|list|complete
 ```
 
-### 4. 업데이트
+### Planning & Intelligence
 
 ```bash
-# npm 업데이트
-npm update -g @ecokg/vela
-
-# 또는 curl
-curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/update.sh | bash -s -- --local
+vela discuss start                 # Conversational planning session
+vela discuss advance --data "..."  # Advance through 6 stages
+vela discuss render                # Export to structured context doc
+vela agents list                   # 6 core agent roles
+vela agents strategy --scale large # Agent team composition
 ```
 
----
+### Observability
 
-## 메커니즘
-
-```
-✦──────────────────────────────────────────────────────────✦
-│                    ⛵ VELA SANDBOX                        │
-│                                                           │
-│  ⛵ Gate Keeper   🌟 Gate Guard   🧭 Orchestrator        │
-│  R/W 모드 강제    파이프라인 순서   매 턴 상태 주입         │
-│                                                           │
-│  ⛵ PROMPT OPTIMIZER ────────────────────────────        │
-│  모든 모드에서 최우선 실행. 불충분한 프롬프트 자동 감지     │
-│  AskUserQuestion으로 대상/범위/목적/맥락 보완 유도          │
-│                                                           │
-│  🧭 PIPELINE ────────────────────────────────────        │
-│  init → research → plan → plan-check → checkpoint        │
-│       → branch → execute → verify → commit → finalize    │
-│                                                           │
-│  🌟 TEAM ────────────────────────────────────────        │
-│  Subagent: 독립 작업 (Haiku/Sonnet/Opus)                   │
-│  Teammate: 소통 필요 (Research 경쟁가설/CrossLayer)           │
-│  TeamCreate/Delete는 Teammate 사용 시에만                   │
-│                                                           │
-│  ✦ ARCHITECTURE ─────────────────────────────────        │
-│  Plan Gate: Architecture/ClassSpec/TestStrategy 필수      │
-│  Execute: TDD (test → implement → refactor)              │
-│  approval-{step}.json 없으면 전이 차단                    │
-✦──────────────────────────────────────────────────────────✦
+```bash
+vela cost                          # Pipeline cost & metrics report
+vela tui                           # Real-time TUI dashboard
+vela auto start|next|status|pause  # Unattended auto-execution
 ```
 
-### Explore / Develop 듀얼 모드
+### Git Integration
 
-| 모드 | 상태 | 허용 | 차단 |
-|------|------|------|------|
-| **⛵ Explore** | 파이프라인 없음 | 읽기, 탐색 | 쓰기, TaskCreate(파이프라인 중) |
-| **🧭 Develop** | 파이프라인 활성 | 단계에 따름 | 단계 건너뛰기, TaskCreate |
-
-### Research 모드 (Explore에서)
-
-깊은 분석 요청 시 AskUserQuestion으로 방식 선택:
-- **Solo** — 직접 분석, 가장 빠름
-- **Subagent** (Opus) — 독립 리서처 1명
-- **Teammate 3명** (Opus) — 경쟁가설 디버깅, 서로 가설 반박/검증
-
-분석 후 수정 필요 시 → 파이프라인 시작 / 추가 조사 / 완료 선택
-
----
-
-## 프롬프트 최적화
-
-모든 모드에서 **사용자 요청이 들어오면 프롬프트를 먼저 분석**한다.
-대상/범위/목적/기술적 맥락이 부족하면 AskUserQuestion으로 보완을 유도.
-
-```
-사용자: "코드 수정해줘"
-
-⛵ Vela Prompt Optimizer:
-  1차) 보완 항목 선택 (이대로 진행/대상 지정/범위 좁히기/문제 상세)
-  2차) 선택 항목의 세부 정보 수집
-  3차) PM이 수집 정보를 조립하여 명확한 프롬프트 작성
-  4차) 조립된 프롬프트를 사용자에게 보여주고 확인
-       ⛵ 최적화된 프롬프트:
-       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-       UserService의 이메일 검증 로직에서
-       중복 체크 누락 버그 수정. ...
-       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  5차) 승인 → 조립된 프롬프트로 파이프라인 시작
+```bash
+vela git branch                    # Create vela/ prefixed branch
+vela git commit                    # Conventional commit with pipeline ref
+vela git merge                     # Squash merge back to base
 ```
 
-**충분한 프롬프트는 바로 진행** — "이대로 진행 (Recommended)"으로 스킵 가능.
+### Requirements
 
----
-
-## 파이프라인
-
-| 종류 | 단계 | 선택 |
-|------|------|------|
-| **standard** | init → research → plan → plan-check → checkpoint → branch → execute → verify → commit → finalize | `--scale large` |
-| **quick** | init → plan → execute → verify → commit → finalize | `--scale medium` |
-| **trivial** | init → execute → commit → finalize | `--scale small` |
-| **ralph** | init → execute ↔ verify (반복) → commit → finalize | `--scale ralph` |
-| **hotfix** | init → execute → commit | `--scale hotfix` |
-
-`--scale` 필수. 미지정 시 AskUserQuestion으로 사용자에게 선택 요구.
-
-### Ralph 모드
-테스트 통과까지 execute → verify를 최대 10회 자동 반복. 버그 수정/TDD에 적합.
-
-### Hotfix 모드
-비-소스 변경(문서, 설정, README)용 최소 파이프라인. 리뷰 스킵.
-
-### Pipeline 템플릿
-`templates/presets.json`에 사전 정의된 패턴: auth, api-crud, bugfix, refactor, migration, docs
-
----
-
-## 팀 메커니즘
-
-### 모델 선택 전략
-
-| 작업 유형 | 모델 | 역할 |
-|----------|------|------|
-| 파일 탐색/검색 | **Haiku** | 탐색 전용 subagent |
-| 코드 구현/리뷰 | **Sonnet** | Executor, Reviewer, Conflict Manager |
-| 설계/디버깅/분석 | **Opus** | Researcher, Planner |
-
-### Teammate vs Subagent
-
-**Teammate** = 에이전트 간 소통(SendMessage) 필요.
-**Subagent** = 독립 단일 작업, 결과만 반환.
-
-| 조건 | 방식 | model |
-|------|------|-------|
-| 경쟁가설 디버깅 (리서치) | **Teammate** | `"opus"` |
-| CrossLayer/다중 파일 동시 수정 | **Teammate** | `"sonnet"` |
-| 독립 리뷰/점검 | **Subagent** | `"sonnet"` |
-| 단일 모듈 수정 | **Subagent** | `"sonnet"` |
-| 파일 탐색 | **Subagent** | `"haiku"` |
-| 설계/분석 | **Subagent** | `"opus"` |
-
-### 팀 규칙
-
-- **팀 크기**: 3~5명 (개발 팀원 + Conflict Manager 1명)
-- **태스크 배분**: 팀원당 5~6개
-- **파일 소유권**: 각 팀원에게 담당 파일 명시 부여
-- **에이전트 MD**: 목차(TOC) 기반 로딩 — 필요한 섹션만 선택적으로 읽기
-- **UI 템플릿**: AskUserQuestion JSON은 `.vela/references/interactive-ui.md`에 분리 (vela.md 토큰 38% 절감)
-
-### CrossLayer Development
-
-다중 계층 작업 시 Teammate + Conflict Manager + Git Worktree:
-```
-TeamCreate → frontend-dev(Sonnet) + backend-dev(Sonnet) + db-dev(Sonnet) + conflict-manager(Sonnet)
-각 팀원: isolation: "worktree" + 담당 파일 + 5~6개 태스크
-팀원 간 SendMessage로 인터페이스 조율
-Conflict Manager가 최종 병합 + 충돌 해결
+```bash
+vela req create "<title>" --class must
+vela req list [--status active]
+vela req update <id> --status validated
+vela req render                    # Generate REQUIREMENTS.md
 ```
 
-### Standard Pipeline 에이전트 흐름
+## Hooks & Enforcement
+
+Vela는 **두 겹의 방어 레이어**로 파이프라인 무결성을 보장합니다.
+
+### ⛵ Gate Keeper — 모드 강제
+
+| Code | Rule |
+|------|------|
+| VK-01 | Read-only 모드에서 Bash 쓰기 명령 차단 |
+| VK-04 | Read-only 모드에서 Write/Edit 차단 |
+| VK-05 | 민감 파일 (.env, credentials, id_rsa) 쓰기 차단 |
+| VK-06 | 15가지 시크릿 패턴 실시간 감지 및 차단 |
+
+### 🌟 Gate Guard — 파이프라인 순서 강제
+
+| Code | Rule |
+|------|------|
+| VG-00 | 파이프라인 중 TaskCreate/TaskUpdate 차단 |
+| VG-01 | research.md 없이 plan.md 작성 불가 |
+| VG-02 | execute 전 소스코드 수정 불가 |
+| VG-03 | 빌드/테스트 실패 시 commit 불가 |
+| VG-05 | pipeline-state.json 직접 수정 불가 |
+| VG-07 | execute/commit/finalize 단계에서만 git commit 허용 |
+| VG-08 | verify 완료 전 git push 차단 |
+| VG-12 | PM이 직접 소스 수정 차단 — SubAgent 위임 강제 |
+| VG-13 | TDD sub-phase: 테스트 먼저, 구현은 다음 |
+
+차단 시 구조화된 JSON 응답과 복구 경로를 자동 제공합니다:
 
 ```
-TeamCreate → Research: Teammate 3명(Opus, 경쟁가설 디버깅)
-           → Plan: Subagent(Opus)
-           → Execute: Subagent(Sonnet) 또는 Teammate(CrossLayer)
-           → 각 단계: Reviewer Subagent(Sonnet) + PM approve/reject
-           → TeamDelete
+⛵ [Vela] ✦ BLOCKED [VG-02]: Source code modification before execute step.
+  File: src/app.ts | Step: research
+  Recovery: Complete steps first: Research → Plan → Implementation
 ```
 
-### 리서치 — 경쟁가설 디버깅
+## Pipelines
 
-가설 생성(3~5개) → 가설 공유(SendMessage) → 증거 수집 → 교차 검증 → 가설 제거 → 결론.
-디테일하되 과하지 않게. Teammate 간 소통으로 가설 경쟁.
+| Scale | Steps | Use Case |
+|-------|-------|----------|
+| `--scale large` | init → research → plan → plan-check → checkpoint → branch → execute → verify → commit → finalize | 설계가 필요한 기능 |
+| `--scale medium` | init → plan → execute → verify → commit → finalize | 명확한 작업 |
+| `--scale small` | init → execute → commit → finalize | 단순 수정 |
+| `--type <name>` | Custom `.vela/pipelines/*.json` | 프로젝트별 커스텀 |
 
-**소통 프로토콜**: 가설 수립 직후 공유 → 증거 발견 시 반박 공유 → 분석 완료 시 PM 보고.
-관점별 가이드(보안/아키텍처/품질)가 `researcher.md`에 정의되어 있음.
+## Adaptive Agent Strategy
 
-**소통 검증**: Tracker가 SendMessage 사용을 추적 (`teammate-comms.json`).
-Research 단계 완료 시 TaskCompleted 훅이 소통 이력을 확인.
+파이프라인 규모에 따라 에이전트 팀 구성이 자동 결정됩니다.
 
-### 승인 메커니즘 — 파일 기반
+| Scale | Strategy | Agents |
+|-------|----------|--------|
+| small | **solo** | PM이 직접 실행 |
+| medium | **scout** | PM + 탐색 에이전트 |
+| large | **role-separation** | Researcher → Planner → Executor → Debugger → Synthesizer |
 
-- **Reviewer** (Subagent, Sonnet) → `review-{step}.md` (X/25 점수 + 이슈)
-- **PM** → `approval-{step}.json` (`decision: "approve"/"reject"`)
-- 엔진 exit gate가 파일 확인 → 없으면 transition 차단
-
----
-
-## 인터랙티브 UI (AskUserQuestion)
-
-모든 사용자 선택은 **방향키로 선택 가능한 UI**를 사용한다.
-
-| 단계 | 선택 UI |
-|------|---------|
-| `/vela` 호출 | 파이프라인 시작 / 환경 구축만 |
-| Research 방식 | Solo / Subagent / Teammate 3명 (경쟁가설) |
-| 파이프라인 규모 | Small / Medium / Large |
-| Research 후 | 파이프라인 시작 / 추가 조사 / 완료 |
-| 기존 Research 활용 | 기존 활용 / 보충 / 처음부터 |
-| **Checkpoint** | 승인 / 변경 요청 / 취소 |
-| **Commit** | 이 메시지 / 수정 / diff 확인 |
-| **Finalize** | PR 생성 / 생성 안 함 |
-| **Cancel** | 취소 진행 / 계속 |
-| **PM 거부 시** | 자동 수정 / 직접 가이드 / 무시 승인 / 취소 |
-
----
-
-## 방어 시스템
-
-### ⛵ Gate Keeper (PreToolUse)
-
-| 게이트 | 코드 | 규칙 |
-|--------|------|------|
-| Bash 차단 | VK-01, VK-02 | Vela CLI 외 차단. 안전한 읽기 명령은 모든 모드 허용. 파이프라인 활성 시 git/gh 허용 |
-| 모드 강제 | VK-03, VK-04 | 읽기전용에서 Write/Edit 차단 |
-| 민감파일 보호 | VK-05 | .env, credentials.json 차단 |
-| 시크릿 감지 | VK-06 | 15개 패턴 차단 |
-
-### 🌟 Gate Guard (PreToolUse)
-
-| 가드 | 코드 | 규칙 |
-|------|------|------|
-| GUARD 0 | VG-00 | 파이프라인 중 TaskCreate/TaskUpdate 차단 |
-| GUARD 0.5 | — | 비-research에서 5회 이상 Read 경고 |
-| GUARD 1 | VG-01 | research.md 없이 plan.md 불가 |
-| GUARD 2 | VG-02 | execute 전 소스코드 수정 불가 + pipeline-state.json 보호 |
-| GUARD 3 | VG-03 | 빌드/테스트 실패 시 commit 불가 |
-| GUARD 4 | VG-04 | verification.md 없이 report.md 불가 |
-| GUARD 5 | VG-05 | pipeline-state.json 직접 수정 불가 |
-| GUARD 6 | VG-06 | 리비전 한도 초과 차단 |
-| GUARD 7 | VG-07 | execute/commit/finalize에서만 git commit 허용 |
-| GUARD 8 | VG-08 | verify 완료 전 git push 차단 |
-| GUARD 9 | — | 보호 브랜치 직접 커밋 경고 |
-| **GUARD 11** | **VG-11** | **비-team 단계에서 approval/review 작성 차단** — team 단계에서만 허용 |
-| **GUARD 12** | **VG-12** | **execute 단계 PM 직접 소스 수정 차단** — SubAgent(단일 모듈) 또는 Teammate(다중 파일) 위임 강제 |
-
-### 차단 시 자동 복구 (Block Recovery)
-
-훅이 `BLOCKED [코드]` 메시지를 반환하면, Claude는 차단 코드를 읽고 `vela.md`의 복구 테이블에 따라 즉시 올바른 행동으로 전환한다. 같은 행동을 재시도하지 않는다.
+6개 핵심 역할, 26개 전문화 프롬프트:
 
 ```
-Claude: src/auth.js 수정 시도
-  ↓
-Hook: 🌟 [Vela] ✦ BLOCKED [VG-02]: Source code modification before execute step.
-      Recovery: Complete steps first: research → plan → execute
-  ↓
-Claude: [VG-02] → 복구 테이블 참조 → vela-engine transition 실행
+researcher/    — hypothesis, architecture, security, quality
+planner/       — spec-format, crosslayer
+executor/      — tdd
+debugger/      — diagnosis, fix-strategy
+synthesizer/   — summary generation
+pm/            — pipeline-flow, git-strategy, team-rules, model-strategy
 ```
 
-### Permission Deny (절대 차단)
+## Discuss — Conversational Planning
 
-`rm -rf`, `git push --force`, `git reset --hard`, `git commit --no-verify`, `git clean -f`
-
----
-
-## 아키텍처 기반 개발 (Standard)
-
-- **Plan**: `## Architecture`, `## Class Specification`, `## Test Strategy` 필수 (200bytes 이상)
-- **Execute**: TDD Sub-Phase (test-write → implement → refactor)
-- **Reviewer**: 구체적 스펙 대 구현 대조 (X/25 점수)
-
----
-
-## ⛵ Vela Identity
-
-### 하단 바 (StatusLine)
+6단계 선형 진행으로 구조화된 기획 세션:
 
 ```
-⛵ Vela ✦ Explore │ Opus 4.6 42%
-⛵ Vela ✦ standard 🧭 research [===>----] 2/10 │ task… │ 35%
+vision → reflection → qa → depth-check → requirements → roadmap
 ```
 
-### Spinner Verbs
-
-```
-⛵ Navigating… / 🧭 Charting… / ✦ Stargazing… / 🔭 Observing…
-⚓ Anchoring… / 🌟 Reading Stars… / ⛵ Setting Sail…
-```
-
-### Hook 실행 중
-
-```
-⛵ Checking harbor clearance...     (Gate Keeper)
-🌟 Verifying navigation chart...    (Gate Guard)
-🧭 Plotting current position...     (Orchestrator)
-🔭 Logging voyage data...           (Tracker)
-⛵ Checking active voyage...        (Stop)
-⛵ Scanning for interrupted voyages... (SessionStart)
-✦ Preserving navigation state...    (PreCompact)
-✦ Restoring navigation state...     (PostCompact)
-⛵ Briefing crew member...          (SubagentStart)
-✦ Verifying voyage milestone...     (TaskCompleted)
+```bash
+vela discuss start                     # Start session
+vela discuss advance --data "..."      # Progress through stages
+vela discuss render                    # Export to context document
 ```
 
-### 시작 시 메시지
+## TUI Dashboard
 
-```
-⛵ Vela Engine — 별자리가 항해를 안내합니다. /vela:start 로 파이프라인을 시작하세요.
-```
-
-### 커밋 Attribution
-
-```
-⛵ Managed by Vela Engine (https://github.com/EcoKG/vela)
+```bash
+vela tui
 ```
 
----
-
-## 산출물 구조
-
 ```
-.vela/artifacts/{date}_{id}_{slug}/
-├── meta.json, pipeline-state.json
-├── research.md, review-research.md, approval-research.json
-├── plan.md, review-plan.md, approval-plan.json
-├── plan-check.md
-├── review-execute.md, approval-execute.json
-├── verification.md, report.md, diff.patch, trace.jsonl
+⛵ Vela ✦ Dashboard
+┌─ Pipeline ────────────────────────────────┐
+│ standard  🧭 execute  [=====>---] 6/10   │
+│ Add OAuth2 authentication                 │
+├─ Tasks ───────────────────────────────────┤
+│ ✅ T001: Setup auth module                │
+│ 🔄 T002: Implement JWT flow              │
+│ ○  T003: Add refresh token logic         │
+├─ Auto-mode ───────────────────────────────┤
+│ ▶ running  │ task 2/5  │ no blockers     │
+└───────────────────────────────────────────┘
+                              q: quit
 ```
 
-예: `.vela/artifacts/2026-03-24_a3f2_auth-system/`
+## Cost Intelligence
 
----
+```bash
+vela cost
+```
 
-## Git 형상관리
+파이프라인별 tool call 수, agent dispatch 횟수, 실행 시간, artifact 생성량을 추적합니다. PostToolUse hook이 `trace.jsonl`에 모든 이벤트를 기록하고, cost module이 집계합니다.
 
-- **Init**: dirty tree 차단, .gitignore 자동
-- **Branch**: `vela/<slug>-<HHMM>` (auto/prompt/none)
-- **Artifact**: `.vela/artifacts/{date}_{id}_{slug}/` (플랫 구조)
-- **Commit**: Conventional Commits + `Vela-Pipeline:` 참조
-- **Cancel**: 체크포인트 hash + 복구 안내
-
----
-
-## 설치 구조
+## Project Structure
 
 ```
 your-project/
 ├── .vela/
-│   ├── hooks/          ← 10 hooks (Gate Keeper, Guard, Orchestrator, Tracker, Stop, SessionStart, Compact, SubagentStart)
-│   ├── cli/            ← vela-engine, vela-read, vela-write
-│   ├── agents/         ← vela.md, researcher, planner, executor, reviewer, conflict-manager, leader(판단가이드)
-│   ├── references/     ← interactive-ui.md, gates-and-guards.md, cli-reference.md, messages-en.md
-│   ├── cache/          ← TreeNode SQLite
-│   ├── templates/      ← pipeline.json, config.json
-│   ├── statusline.sh   ← ⛵ 하단 바
-│   └── install.js      ← 설치/검증/복구/upgrade
+│   ├── hooks/       # 10 enforcement hooks (CJS)
+│   ├── cli/         # Engine CLI (vela-engine, vela-read, vela-write)
+│   ├── agents/      # 26 agent prompt files
+│   ├── guidelines/  # Coding standards, error handling, testing
+│   ├── references/  # Interactive UI, gates reference
+│   ├── templates/   # Pipeline & config templates
+│   └── config.json  # Project configuration
 ├── .claude/
-│   ├── settings.local.json  ← 훅 + permission + agent + spinner + statusLine
-│   └── agents/vela.md       ← 기본 에이전트
-├── CLAUDE.md                ← Vela 규칙
-└── (프로젝트 파일)
+│   └── settings.local.json  # Hook registration (auto-generated)
+└── src/             # Your code — protected by Vela
 ```
 
-### install.js 명령어
+## Numbers
 
-| 명령 | 설명 |
-|------|------|
-| `node .vela/install.js` | 훅 설치 + 유효성 검증 |
-| `node .vela/install.js verify` | 설치 검증만 |
-| `node .vela/install.js upgrade` | 모든 파일을 최신 버전으로 갱신 (config.json 제외) |
-| `node .vela/install.js status` | 현재 훅 상태 확인 |
-| `node .vela/install.js uninstall` | Vela 훅 제거 |
+| Metric | Value |
+|--------|-------|
+| Source (TypeScript) | 5,060 lines |
+| Tests | 9,818 lines |
+| Hook enforcement (CJS) | 1,131 lines |
+| Agent prompts | 26 files |
+| Test cases | 589 passing |
+| Tarball size | < 200KB |
+| Node.js | ≥ 22 |
+
+## Philosophy
+
+```
+  구조로 강제하라, 지시로 의존하지 마라.
+  Enforce by structure, not by instruction.
+```
+
+Vela는 AI에게 "하지 마세요"라고 말하지 않습니다. 할 수 없게 만듭니다.
+
+- 리서치 없이 plan을 쓸 수 없습니다 — 파일이 없으면 hook이 차단합니다.
+- 테스트 없이 커밋할 수 없습니다 — 빌드 실패 시 commit이 거부됩니다.
+- 시크릿을 코드에 넣을 수 없습니다 — 15가지 패턴이 실시간으로 감지됩니다.
+
+프롬프트는 무시될 수 있습니다. Hook exit code 2는 무시할 수 없습니다.
+
+## License
+
+MIT — Copyright (c) 2026 EcoKG
 
 ---
 
-## 엔진 명령어
-
-```bash
-vela-engine init "설명" --scale <small|medium|large>
-vela-engine state
-vela-engine transition
-vela-engine record pass|fail
-vela-engine sub-transition
-vela-engine branch [--mode auto|prompt|none]
-vela-engine commit [--message TEXT]
-vela-engine cancel
-vela-engine history
-vela-cost                                            # 파이프라인 비용/메트릭
-vela-report [--html output.html]                     # 파이프라인 리포트/대시보드
-```
-
----
-
-## 라이선스
-
-MIT License — Copyright (c) 2026 EcoKG
+<p align="center">
+  <em>⛵ 별을 따라 항해하라 — 모든 파이프라인은 목적지로 향한다</em>
+</p>
