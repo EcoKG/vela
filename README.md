@@ -8,7 +8,7 @@
   <em>Development Governance Engine for AI Coding Agents</em>
   <br />
   <br />
-  <a href="#quick-start">Quick Start</a> · <a href="#why-vela">Why Vela</a> · <a href="#architecture">Architecture</a> · <a href="#commands">Commands</a> · <a href="#hooks--enforcement">Hooks</a>
+  <a href="#quick-start">Quick Start</a> · <a href="#why-vela">Why Vela</a> · <a href="#architecture">Architecture</a> · <a href="#commands">Commands</a> · <a href="#hooks--enforcement">Hooks</a> · <a href="#documentation">Docs</a>
   <br />
   <br />
 </p>
@@ -300,6 +300,18 @@ Vela는 AI에게 "하지 마세요"라고 말하지 않습니다. 할 수 없게
 - 시크릿을 코드에 넣을 수 없습니다 — 15가지 패턴이 실시간으로 감지됩니다.
 
 프롬프트는 무시될 수 있습니다. Hook exit code 2는 무시할 수 없습니다.
+
+## Documentation
+
+상세 문서는 [`docs/`](docs/) 디렉토리에서 확인할 수 있습니다:
+
+| 문서 | 내용 |
+|------|------|
+| 📦 [Installation Guide](docs/installation.md) | 설치 방법 3가지, 프로젝트 설정, 트러블슈팅 |
+| 📖 [Usage Guide](docs/usage.md) | 전체 워크플로우, 파이프라인, 계층 구조, Discuss, Auto-mode |
+| 🔒 [Hooks & Enforcement](docs/hooks.md) | Gate Keeper/Guard 상세, 15가지 시크릿 패턴, 차단 메커니즘 |
+| ⚙️ [Configuration](docs/configuration.md) | config.json, 커스텀 파이프라인, 에이전트 오버라이드 |
+| 💻 [CLI Reference](docs/cli-reference.md) | 모든 명령어 레퍼런스 (옵션, 출력 형식, 예시) |
 
 ## License
 
