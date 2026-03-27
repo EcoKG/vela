@@ -32,13 +32,11 @@ export function App({ exitOnQ = true, velaDir }: AppProps) {
     loadData();
   }, []);
 
-  function loadData() {
+  async function loadData() {
     try {
-      // Lazy-import to avoid pulling in native modules at parse time
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { openStateDb, listTasks: listTasksFn } = require('../state.js') as typeof import('../state.js');
-      const { getPipelineState } = require('../pipeline.js') as typeof import('../pipeline.js');
-      const { loadAutoModeState } = require('../auto-mode.js') as typeof import('../auto-mode.js');
+      const { openStateDb, listTasks: listTasksFn } = await import('../state.js');
+      const { getPipelineState } = await import('../pipeline.js');
+      const { loadAutoModeState } = await import('../auto-mode.js');
 
       const db = openStateDb(velaDir);
       try {
