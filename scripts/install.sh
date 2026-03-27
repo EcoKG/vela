@@ -1,13 +1,13 @@
 #!/bin/sh
 # Vela CLI — curl-pipe-sh install script
-# Usage: curl -fsSL https://raw.githubusercontent.com/starlyn/vela-cli/main/scripts/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/scripts/install.sh | sh
 # Supports: --dry-run, VELA_REPO env override, VELA_VERSION env override
 set -eu
 
 # ---------------------------------------------------------------------------
 # Configuration (override via env)
 # ---------------------------------------------------------------------------
-VELA_REPO="${VELA_REPO:-starlyn/vela-cli}"
+VELA_REPO="${VELA_REPO:-EcoKG/vela}"
 VELA_VERSION="${VELA_VERSION:-0.1.0}"
 TARBALL_NAME="vela-cli-${VELA_VERSION}.tgz"
 DOWNLOAD_URL="https://github.com/${VELA_REPO}/releases/download/v${VELA_VERSION}/${TARBALL_NAME}"

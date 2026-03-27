@@ -10,8 +10,8 @@ Vela의 설정 파일과 커스터마이징 방법을 설명합니다.
 your-project/
 ├── .vela/
 │   ├── config.json          # ← 핵심 설정
-│   ├── hooks/               # 3개 enforcement hook (CJS) + shared/
-│   ├── agents/              # 26개 agent prompt 파일
+│   ├── hooks/               # 2개 enforcement hook (CJS) + shared/
+│   ├── agents/              # 25개 agent prompt 파일
 │   ├── state/               # SQLite DB, pipeline state (gitignored)
 │   └── pipelines/           # ← 커스텀 파이프라인 정의 (선택)
 │       └── review.json
@@ -99,8 +99,7 @@ vela start "코드 리뷰" --type review
 
 | 이벤트 | Hook | 설명 |
 |--------|------|------|
-| `PreToolUse` | gate-keeper | R/W 모드 강제, 시크릿 감지, 민감 파일 보호 |
-| `PreToolUse` | gate-guard | 파이프라인 순서 강제, TDD, git 게이트 |
+| `PreToolUse` | vela-gate | R/W 모드 강제, 시크릿 감지, 민감 파일 보호, 파이프라인 순서 강제, TDD, git 게이트 |
 | `PostToolUse` | tracker | trace.jsonl 로깅 |
 
 ### permissions (Claude Code 자체 기능)

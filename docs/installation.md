@@ -63,8 +63,8 @@ vela init
 
 | 항목 | 설명 |
 |------|------|
-| `.vela/hooks/` | 3개 enforcement hook 복사 (gate-keeper.cjs, gate-guard.cjs, tracker.cjs) + shared/ |
-| `.vela/agents/` | 26개 agent prompt 파일 복사 |
+| `.vela/hooks/` | 2개 enforcement hook 복사 (vela-gate.cjs, tracker.cjs) + shared/ |
+| `.vela/agents/` | 25개 agent prompt 파일 복사 |
 | `.vela/config.json` | 프로젝트 설정 파일 생성 |
 | `.vela/state/` | SQLite DB, 파이프라인 상태 (gitignored) |
 | `.claude/settings.local.json` | Claude Code hook 등록 (자동 생성) |
@@ -80,11 +80,11 @@ vela init
 vela --version
 
 # 2. 프로젝트 초기화 확인
-ls .vela/hooks/        # 3개 hook 파일 + shared/
-ls .vela/agents/       # 26개 agent prompt
+ls .vela/hooks/        # 2개 hook 파일 + shared/
+ls .vela/agents/       # 25개 agent prompt
 
 # 3. Claude Code hook 등록 확인
-cat .claude/settings.local.json | grep "gate-keeper"
+cat .claude/settings.local.json | grep "vela-gate"
 ```
 
 ---
@@ -133,7 +133,7 @@ export PATH="$(npm config get prefix)/bin:$PATH"
 cat .claude/settings.local.json | grep -A2 "PreToolUse"
 
 # hook 파일이 존재하는지 확인
-ls .vela/hooks/gate-keeper.cjs .vela/hooks/gate-guard.cjs .vela/hooks/tracker.cjs
+ls .vela/hooks/vela-gate.cjs .vela/hooks/tracker.cjs
 ```
 
 ### Node.js 버전 오류

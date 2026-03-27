@@ -248,8 +248,8 @@ vela git commit
 vela git merge
 ```
 
-> **Gate Guard VG-07:** commit은 execute/commit/finalize 단계에서만 허용됩니다.
-> **Gate Guard VG-08:** push는 verify 완료 후에만 허용됩니다.
+> **Vela Gate VG-07:** commit은 execute/commit/finalize 단계에서만 허용됩니다.
+> **Vela Gate VG-08:** push는 verify 완료 후에만 허용됩니다.
 
 ---
 

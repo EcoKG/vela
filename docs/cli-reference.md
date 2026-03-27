@@ -72,7 +72,7 @@ vela transition
 ```
 
 - 전이 조건이 충족되지 않으면 거부
-- Gate Guard가 순서를 강제
+- Vela Gate가 순서를 강제
 
 출력: JSON `{ ok, previous, current, remaining }`
 
@@ -270,7 +270,7 @@ vela git commit
 
 - Conventional Commits 형식
 - `Vela-Pipeline: <id>` 참조 자동 추가
-- Gate Guard VG-07: execute/commit/finalize에서만 허용
+- Vela Gate VG-07: execute/commit/finalize에서만 허용
 
 ---
 
