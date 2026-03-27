@@ -259,8 +259,8 @@ vela git merge
 
 ```bash
 # 요구사항 생성
-vela req create "R001" --title "사용자 로그인" --class must
-vela req create "R002" --title "소셜 로그인" --class should
+vela req create "R001" --title "사용자 로그인" --class core-capability
+vela req create "R002" --title "소셜 로그인" --class differentiator
 
 # 조회
 vela req list
@@ -274,14 +274,18 @@ vela req render
 vela req render --output ./REQUIREMENTS.md
 ```
 
-### 요구사항 분류
+### 요구사항 분류 (8종)
 
 | Class | 의미 |
 |-------|------|
-| `must` | 반드시 구현 |
-| `should` | 구현 권장 |
-| `could` | 가능하면 구현 |
-| `wont` | 이번에는 안 함 |
+| `core-capability` | 핵심 기능 |
+| `differentiator` | 차별화 기능 |
+| `quality-attribute` | 품질 속성 |
+| `compliance/security` | 규정 준수 / 보안 |
+| `launchability` | 출시 요건 |
+| `continuity` | 지속성 |
+| `integration` | 통합 |
+| `anti-feature` | 안티 기능 |
 
 ### 상태 흐름
 
@@ -298,8 +302,8 @@ active → out-of-scope (범위 밖)
 무인 자동 실행 엔진:
 
 ```bash
-# 시작 (마일스톤/슬라이스 기반)
-vela auto start --milestone MS001
+# 시작 (마일스톤 + 슬라이스 둘 다 필수)
+vela auto start --milestone MS001 --slice SL001
 
 # 상태 확인
 vela auto status
@@ -340,7 +344,7 @@ PostToolUse hook이 `trace.jsonl`에 모든 이벤트를 기록하고, cost modu
 
 ## 10. TUI Dashboard
 
-실시간 터미널 대시보드:
+실시간 터미널 대시보드 (Node.js ≥20 필요):
 
 ```bash
 vela tui
@@ -371,7 +375,7 @@ Ink v6 + React 19 기반. `q` 키로 종료.
 
 ```bash
 # 현재 작업 상태 저장
-vela continue save --context "JWT signing 구현 중, 테스트 3개 남음"
+vela continue save --milestone MS001 --slice SL001 --notes "JWT signing 구현 중, 테스트 3개 남음"
 
 # 나중에 불러오기
 vela continue load

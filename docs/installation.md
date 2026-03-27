@@ -4,7 +4,7 @@ Vela를 설치하는 3가지 방법을 안내합니다.
 
 ## Prerequisites
 
-- **Node.js 22** 이상
+- **Node.js 18** 이상 (TUI는 Node.js ≥20 필요)
 - **Claude Code** (Claude Code hooks를 통해 동작)
 - **Git** (git integration 사용 시)
 
@@ -63,17 +63,13 @@ vela init
 
 | 항목 | 설명 |
 |------|------|
-| `.vela/hooks/` | 10개 enforcement hook 복사 (Gate Keeper, Gate Guard 등) |
-| `.vela/cli/` | Engine CLI 복사 (vela-engine, vela-read, vela-write) |
+| `.vela/hooks/` | 3개 enforcement hook 복사 (gate-keeper.cjs, gate-guard.cjs, tracker.cjs) + shared/ |
 | `.vela/agents/` | 26개 agent prompt 파일 복사 |
-| `.vela/guidelines/` | 코딩 표준, 에러 핸들링, 테스트 전략 가이드 |
-| `.vela/references/` | Interactive UI, gates 레퍼런스 |
-| `.vela/templates/` | 파이프라인 & 설정 템플릿 |
-| `.vela/config.json` | 프로젝트 설정 파일 |
+| `.vela/config.json` | 프로젝트 설정 파일 생성 |
+| `.vela/state/` | SQLite DB, 파이프라인 상태 (gitignored) |
 | `.claude/settings.local.json` | Claude Code hook 등록 (자동 생성) |
-| `CLAUDE.md` | Vela 규칙 파일 |
 
-> **멱등성 보장** — `vela init`을 여러 번 실행해도 안전합니다. 이미 존재하는 파일은 덮어쓰지 않습니다.
+> **멱등성 보장** — `vela init`을 여러 번 실행해도 안전합니다. 이미 초기화된 프로젝트에서도 hook과 agent 파일을 업데이트합니다.
 
 ---
 
@@ -84,11 +80,11 @@ vela init
 vela --version
 
 # 2. 프로젝트 초기화 확인
-ls .vela/hooks/        # 10개 hook 파일
+ls .vela/hooks/        # 3개 hook 파일 + shared/
 ls .vela/agents/       # 26개 agent prompt
 
 # 3. Claude Code hook 등록 확인
-cat .claude/settings.local.json | grep "vela-gate-keeper"
+cat .claude/settings.local.json | grep "gate-keeper"
 ```
 
 ---
@@ -136,13 +132,13 @@ export PATH="$(npm config get prefix)/bin:$PATH"
 # .claude/settings.local.json에 hook이 등록되었는지 확인
 cat .claude/settings.local.json | grep -A2 "PreToolUse"
 
-# hook 경로가 올바른지 확인
-node .vela/hooks/vela-gate-keeper.js  # 에러 없이 종료되어야 함
+# hook 파일이 존재하는지 확인
+ls .vela/hooks/gate-keeper.cjs .vela/hooks/gate-guard.cjs .vela/hooks/tracker.cjs
 ```
 
 ### Node.js 버전 오류
 
 ```bash
-node --version  # v22.0.0 이상 필요
-nvm install 22 && nvm use 22  # nvm 사용 시
+node --version  # v18.0.0 이상 필요 (TUI는 v20.0.0 이상)
+nvm install 18 && nvm use 18  # nvm 사용 시
 ```

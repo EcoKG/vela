@@ -289,15 +289,28 @@ vela git merge
 ### `vela req create <id>`
 
 ```bash
-vela req create "R001" --title "사용자 로그인" --class must
-vela req create "R002" --title "소셜 로그인" --class should --description "Google, GitHub OAuth"
+vela req create "R001" --title "사용자 로그인" --class core-capability
+vela req create "R002" --title "소셜 로그인" --class differentiator --description "Google, GitHub OAuth"
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--title <text>` | 요구사항 제목 |
-| `--class <type>` | `must` / `should` / `could` / `wont` |
+| `--class <type>` | 8종 분류 (아래 참조) |
 | `--description <text>` | 상세 설명 |
+
+**Requirements Class (8종):**
+
+| Class | 의미 |
+|-------|------|
+| `core-capability` | 핵심 기능 |
+| `differentiator` | 차별화 기능 |
+| `quality-attribute` | 품질 속성 |
+| `compliance/security` | 규정 준수 / 보안 |
+| `launchability` | 출시 요건 |
+| `continuity` | 지속성 |
+| `integration` | 통합 |
+| `anti-feature` | 안티 기능 |
 
 ---
 
@@ -343,9 +356,10 @@ vela req render --output ./REQUIREMENTS.md
 ### `vela auto start`
 
 ```bash
-vela auto start --milestone MS001
-vela auto start --slice SL001
+vela auto start --milestone MS001 --slice SL001
 ```
+
+> `--milestone`과 `--slice` 둘 다 필수입니다.
 
 ---
 
@@ -438,7 +452,7 @@ vela cost
 
 ### `vela tui`
 
-TUI 대시보드를 실행합니다.
+TUI 대시보드를 실행합니다 (Node.js ≥20 필요).
 
 ```bash
 vela tui
@@ -451,8 +465,16 @@ vela tui
 ### `vela continue save`
 
 ```bash
-vela continue save --context "JWT 구현 중, 테스트 남음"
+vela continue save --milestone MS001 --slice SL001 [--task TK001] [--step execute] [--notes "JWT 구현 중"]
 ```
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--milestone <id>` | ✅ | 마일스톤 ID |
+| `--slice <id>` | ✅ | 슬라이스 ID |
+| `--task <id>` | — | 태스크 ID |
+| `--step <step>` | — | 현재 단계 |
+| `--notes <text>` | — | 메모 |
 
 ### `vela continue load`
 

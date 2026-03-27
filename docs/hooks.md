@@ -17,17 +17,20 @@ Vela는 Claude Code의 hook 시스템에 연결되어 **모든 도구 호출 전
 
 ### Hook 목록
 
+Vela는 **3개의 Claude Code hooks**를 등록합니다:
+
 | Hook | 이벤트 | 역할 |
 |------|--------|------|
-| `vela-gate-keeper.js` | PreToolUse | R/W 모드 강제, 시크릿 감지, 민감 파일 보호 |
-| `vela-gate-guard.js` | PreToolUse | 파이프라인 순서 강제, TDD, git 게이트 |
-| `vela-orchestrator.js` | UserPromptSubmit | 매 턴 상태 주입 |
-| `vela-tracker.js` | PostToolUse | trace.jsonl 로깅 |
-| `vela-stop.js` | Stop | 활성 항해 확인 |
-| `vela-session-start.js` | SessionStart | 중단된 항해 스캔 |
-| `vela-compact.js` | PreCompact / PostCompact | 내비게이션 상태 보존/복원 |
-| `vela-subagent-start.js` | SubagentStart | 크루 멤버 브리핑 |
-| `vela-task-completed.js` | TaskCompleted | 항해 마일스톤 검증 |
+| `gate-keeper.cjs` | PreToolUse | R/W 모드 강제, 시크릿 감지, 민감 파일 보호 |
+| `gate-guard.cjs` | PreToolUse | 파이프라인 순서 강제, TDD, git 게이트 |
+| `tracker.cjs` | PostToolUse | trace.jsonl 로깅 |
+
+### `.claude/settings.local.json` 등록
+
+`vela init`이 자동 생성하는 hook 등록:
+
+- **PreToolUse** × 2: gate-keeper, gate-guard
+- **PostToolUse** × 1: tracker
 
 ---
 
@@ -41,7 +44,7 @@ Vela는 Claude Code의 hook 시스템에 연결되어 **모든 도구 호출 전
 ⛵ [Vela] ✦ BLOCKED [VK-01]: Bash write command in read-only mode.
   Mode: read
   Command: rm -rf src/
-  Recovery: Use Vela CLI tools instead: .vela/cli/vela-write
+  Recovery: Advance pipeline to write-enabled step
 ```
 
 Read-only 모드에서 차단되는 Bash 명령:
@@ -160,7 +163,7 @@ research, plan 단계에서 `src/`, `lib/` 등 소스코드를 수정할 수 없
 
 ```
 🌟 [Vela] ✦ BLOCKED [VG-05]: Cannot directly modify pipeline-state.json.
-  Recovery: Use engine CLI: node .vela/cli/vela-engine.js transition
+  Recovery: Use CLI: vela transition
 ```
 
 ### VG-06: 리비전 한도 초과
@@ -180,7 +183,7 @@ execute, commit, finalize 단계에서만 `git commit` 허용.
 ```
 🌟 [Vela] ✦ BLOCKED [VG-07]: Git commit only allowed during execute/commit/finalize steps.
   Step: research
-  Recovery: Use engine: node .vela/cli/vela-engine.js commit
+  Recovery: Use CLI: vela git commit
 ```
 
 ### VG-08: Verify 전 Git Push 차단
@@ -223,6 +226,12 @@ execute 단계에서 테스트 파일을 먼저 작성해야 합니다.
 
 ---
 
+## 🔭 Tracker (추적기)
+
+**모든 tool 호출을 `trace.jsonl`에 기록합니다.** `vela cost`의 데이터 소스.
+
+---
+
 ## 차단 & 자동 복구 메커니즘
 
 모든 차단 메시지는 구조화된 JSON 형태로 반환되며, Recovery 경로를 포함합니다.
@@ -260,24 +269,3 @@ Claude: vela transition 실행 (research → plan → execute로 진행)
 | **Develop** | 파이프라인 활성 | 단계별 R/W | 단계 건너뛰기 |
 
 파이프라인 없이 코드를 수정하려 하면 → VG-EXPLORE로 차단 → `vela start`로 파이프라인 시작 유도.
-
----
-
-## 커스터마이징
-
-`.vela/config.json`으로 hook 동작을 조정할 수 있습니다:
-
-```json
-{
-  "gate_keeper": {
-    "enabled": true,           // Gate Keeper 활성화
-    "default_mode": "read",    // 기본 모드
-    "mode_auto_detect": true   // 파이프라인 단계별 자동 모드
-  },
-  "gate_guard": {
-    "enabled": true,           // Gate Guard 활성화
-    "hard_block_exit_code": 2, // 차단 시 exit code
-    "bypass_allowed": false    // 우회 허용 여부
-  }
-}
-```

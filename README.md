@@ -58,8 +58,8 @@ vela start "Add OAuth2 authentication" --scale large
 ┌─────────────────────────────────────────────────────────────┐
 │                      ⛵  V E L A                            │
 │                                                             │
-│   ⛵ Gate Keeper        🌟 Gate Guard       🧭 Orchestrator │
-│   R/W mode enforcement  Pipeline ordering   State injection │
+│   ⛵ Gate Keeper        🌟 Gate Guard        🔭 Tracker     │
+│   R/W mode enforcement  Pipeline ordering    trace.jsonl    │
 │                                                             │
 │   ┌─────────────────────────────────────────────────────┐   │
 │   │  P I P E L I N E                                    │   │
@@ -68,11 +68,9 @@ vela start "Add OAuth2 authentication" --scale large
 │   │       → execute → verify → commit → finalize        │   │
 │   └─────────────────────────────────────────────────────┘   │
 │                                                             │
-│   🔭 Tracker              ✦ TUI Dashboard                  │
-│   trace.jsonl logging     Real-time pipeline status         │
-│                                                             │
-│   🤖 Adaptive Agents                                       │
-│   6 roles × 26 prompts   solo / scout / role-separation    │
+│   ✦ TUI Dashboard         🤖 Adaptive Agents               │
+│   Real-time pipeline      6 roles × 26 prompts             │
+│   status (vela tui)       solo / scout / role-separation    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -81,7 +79,7 @@ vela start "Add OAuth2 authentication" --scale large
 - **Language:** TypeScript (strict, ESM, `moduleResolution: nodenext`)
 - **State:** SQLite via better-sqlite3 — pipelines, milestones, slices, tasks
 - **TUI:** Ink v6 + React 19 — real-time dashboard with `vela tui`
-- **Hooks:** Claude Code hooks (PreToolUse, PostToolUse, UserPromptSubmit, Stop, SessionStart, Compact, SubagentStart, TaskCompleted)
+- **Hooks:** Claude Code hooks — PreToolUse × 2 (gate-keeper, gate-guard) + PostToolUse × 1 (tracker)
 - **Test:** Vitest — **589 tests passing**
 
 ### 3-Tier Hierarchy
@@ -128,8 +126,9 @@ vela agents strategy --scale large # Agent team composition
 
 ```bash
 vela cost                          # Pipeline cost & metrics report
-vela tui                           # Real-time TUI dashboard
-vela auto start|next|status|pause  # Unattended auto-execution
+vela tui                           # Real-time TUI dashboard (Node.js ≥20)
+vela auto start --milestone MS001 --slice SL001  # Unattended auto-execution
+vela auto next|status|pause|resume|cancel
 ```
 
 ### Git Integration
@@ -143,17 +142,25 @@ vela git merge                     # Squash merge back to base
 ### Requirements
 
 ```bash
-vela req create "<title>" --class must
+vela req create R001 --title "OAuth2 support" --class core-capability
 vela req list [--status active]
-vela req update <id> --status validated
+vela req update R001 --status validated
 vela req render                    # Generate REQUIREMENTS.md
+```
+
+### Continue Points
+
+```bash
+vela continue save --milestone MS001 --slice SL001 [--task TK001] [--notes "..."]
+vela continue load                 # Load the current continue point
+vela continue clear                # Clear the continue point
 ```
 
 ## Hooks & Enforcement
 
-Vela는 **두 겹의 방어 레이어**로 파이프라인 무결성을 보장합니다.
+Vela는 **3개의 Claude Code hooks**로 파이프라인 무결성을 보장합니다.
 
-### ⛵ Gate Keeper — 모드 강제
+### ⛵ Gate Keeper — 모드 강제 (PreToolUse)
 
 | Code | Rule |
 |------|------|
@@ -162,7 +169,7 @@ Vela는 **두 겹의 방어 레이어**로 파이프라인 무결성을 보장�
 | VK-05 | 민감 파일 (.env, credentials, id_rsa) 쓰기 차단 |
 | VK-06 | 15가지 시크릿 패턴 실시간 감지 및 차단 |
 
-### 🌟 Gate Guard — 파이프라인 순서 강제
+### 🌟 Gate Guard — 파이프라인 순서 강제 (PreToolUse)
 
 | Code | Rule |
 |------|------|
@@ -175,6 +182,10 @@ Vela는 **두 겹의 방어 레이어**로 파이프라인 무결성을 보장�
 | VG-08 | verify 완료 전 git push 차단 |
 | VG-12 | PM이 직접 소스 수정 차단 — SubAgent 위임 강제 |
 | VG-13 | TDD sub-phase: 테스트 먼저, 구현은 다음 |
+
+### 🔭 Tracker — 이벤트 기록 (PostToolUse)
+
+모든 tool 호출을 `trace.jsonl`에 기록합니다. `vela cost`의 데이터 소스.
 
 차단 시 구조화된 JSON 응답과 복구 경로를 자동 제공합니다:
 
@@ -231,7 +242,7 @@ vela discuss render                    # Export to context document
 ## TUI Dashboard
 
 ```bash
-vela tui
+vela tui    # Node.js ≥20 required
 ```
 
 ```
@@ -255,36 +266,47 @@ vela tui
 vela cost
 ```
 
-파이프라인별 tool call 수, agent dispatch 횟수, 실행 시간, artifact 생성량을 추적합니다. PostToolUse hook이 `trace.jsonl`에 모든 이벤트를 기록하고, cost module이 집계합니다.
+파이프라인별 tool call 수, agent dispatch 횟수, 실행 시간, artifact 생성량을 추적합니다. PostToolUse hook(tracker)이 `trace.jsonl`에 모든 이벤트를 기록하고, cost module이 집계합니다.
 
 ## Project Structure
 
 ```
 your-project/
 ├── .vela/
-│   ├── hooks/       # 10 enforcement hooks (CJS)
-│   ├── cli/         # Engine CLI (vela-engine, vela-read, vela-write)
+│   ├── hooks/       # 3 enforcement hooks (CJS) + shared/
 │   ├── agents/      # 26 agent prompt files
-│   ├── guidelines/  # Coding standards, error handling, testing
-│   ├── references/  # Interactive UI, gates reference
-│   ├── templates/   # Pipeline & config templates
-│   └── config.json  # Project configuration
+│   ├── config.json  # Project configuration
+│   └── state/       # SQLite DB, pipeline state (gitignored)
 ├── .claude/
 │   └── settings.local.json  # Hook registration (auto-generated)
 └── src/             # Your code — protected by Vela
+```
+
+## Configuration
+
+`vela init`이 생성하는 `.vela/config.json`:
+
+```json
+{
+  "version": "1.0",
+  "pipeline": {
+    "default": "standard",
+    "scales": ["trivial", "quick", "standard"]
+  }
+}
 ```
 
 ## Numbers
 
 | Metric | Value |
 |--------|-------|
-| Source (TypeScript) | 5,060 lines |
-| Tests | 9,818 lines |
-| Hook enforcement (CJS) | 1,131 lines |
+| Source (TypeScript) | ~4,829 lines |
+| Tests | ~9,626 lines |
+| Hook enforcement (CJS) | ~1,128 lines |
 | Agent prompts | 26 files |
 | Test cases | 589 passing |
-| Tarball size | < 200KB |
-| Node.js | ≥ 22 |
+| Tarball size | ~268 KB |
+| Node.js | ≥ 18 (TUI: ≥ 20) |
 
 ## Philosophy
 
@@ -307,9 +329,9 @@ Vela는 AI에게 "하지 마세요"라고 말하지 않습니다. 할 수 없게
 
 | 문서 | 내용 |
 |------|------|
-| 📦 [Installation Guide](docs/installation.md) | 설치 방법 3가지, 프로젝트 설정, 트러블슈팅 |
+| 📦 [Installation Guide](docs/installation.md) | 설치 방법, 프로젝트 설정, 트러블슈팅 |
 | 📖 [Usage Guide](docs/usage.md) | 전체 워크플로우, 파이프라인, 계층 구조, Discuss, Auto-mode |
-| 🔒 [Hooks & Enforcement](docs/hooks.md) | Gate Keeper/Guard 상세, 15가지 시크릿 패턴, 차단 메커니즘 |
+| 🔒 [Hooks & Enforcement](docs/hooks.md) | Gate Keeper/Guard/Tracker 상세, 15가지 시크릿 패턴, 차단 메커니즘 |
 | ⚙️ [Configuration](docs/configuration.md) | config.json, 커스텀 파이프라인, 에이전트 오버라이드 |
 | 💻 [CLI Reference](docs/cli-reference.md) | 모든 명령어 레퍼런스 (옵션, 출력 형식, 예시) |
 

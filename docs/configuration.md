@@ -10,16 +10,11 @@ Vela의 설정 파일과 커스터마이징 방법을 설명합니다.
 your-project/
 ├── .vela/
 │   ├── config.json          # ← 핵심 설정
-│   ├── pipelines/           # ← 커스텀 파이프라인 정의
-│   │   └── review.json
-│   ├── templates/
-│   │   ├── pipeline.json    # 파이프라인 단계 정의
-│   │   └── presets.json     # 사전 정의 프리셋
-│   └── guidelines/          # 팀 코딩 가이드라인
-│       ├── index.md
-│       ├── coding-standards.md
-│       ├── error-handling.md
-│       └── testing-strategy.md
+│   ├── hooks/               # 3개 enforcement hook (CJS) + shared/
+│   ├── agents/              # 26개 agent prompt 파일
+│   ├── state/               # SQLite DB, pipeline state (gitignored)
+│   └── pipelines/           # ← 커스텀 파이프라인 정의 (선택)
+│       └── review.json
 └── .claude/
     └── settings.local.json  # Claude Code hook 등록 (자동 생성)
 ```
@@ -28,58 +23,23 @@ your-project/
 
 ## config.json
 
+`vela init`이 생성하는 기본 설정 — 2개 필드만 포함합니다:
+
 ```json
 {
   "version": "1.0",
-  "engine": "vela",
-
-  "sandbox": {
-    "enabled": true,        // 샌드박스 모드 활성화
-    "strict_mode": true,    // 엄격한 모드 (모든 gate 활성)
-    "bash_policy": "blocked" // Bash 정책: blocked | limited | open
-  },
-
   "pipeline": {
-    "default": "standard",   // 기본 파이프라인: standard | quick | trivial
-    "auto_scale": true,      // --scale 미지정 시 자동 선택
-    "enforce_all_steps": true // 모든 단계 강제 (건너뛰기 불가)
-  },
-
-  "gate_keeper": {
-    "enabled": true,           // Gate Keeper 활성화
-    "default_mode": "read",    // 기본 R/W 모드
-    "mode_auto_detect": true   // 파이프라인 단계별 자동 모드 전환
-  },
-
-  "gate_guard": {
-    "enabled": true,           // Gate Guard 활성화
-    "hard_block_exit_code": 2, // 차단 시 exit code (2 = Claude 강제 정지)
-    "bypass_allowed": false    // 우회 허용 여부 (권장: false)
-  },
-
-  "cli": {
-    "language": null,         // 언어 설정 (null = 자동 감지)
-    "tools_dir": ".vela/cli"  // CLI 도구 디렉토리
-  },
-
-  "cache": {
-    "enabled": true,
-    "db_path": ".vela/cache/vela-cache.db",
-    "treenode_enabled": true   // TreeNode 코드 캐시
-  },
-
-  "hooks": {
-    "use_vela_hooks": true,    // Vela hook 사용
-    "claude_code_trigger": true // Claude Code hook 이벤트 연결
-  },
-
-  "artifacts": {
-    "base_dir": ".vela/artifacts",    // 산출물 디렉토리
-    "date_format": "YYYY-MM-DD",      // 날짜 형식
-    "cleanup_after_hours": 24         // 자동 정리 (시간)
+    "default": "standard",
+    "scales": ["trivial", "quick", "standard"]
   }
 }
 ```
+
+| 필드 | 설명 |
+|------|------|
+| `version` | 설정 파일 버전 |
+| `pipeline.default` | 기본 파이프라인 타입 (`standard`, `quick`, `trivial`) |
+| `pipeline.scales` | 사용 가능한 파이프라인 스케일 목록 |
 
 ---
 
@@ -131,39 +91,24 @@ vela start "코드 리뷰" --type review
 
 ---
 
-## Pipeline Presets
-
-`.vela/templates/presets.json`에 사전 정의된 작업 유형:
-
-| Preset | Scale | 설명 |
-|--------|-------|------|
-| `auth` | large | 인증 시스템 (OAuth, JWT, RBAC) |
-| `api-crud` | medium | REST API CRUD 엔드포인트 |
-| `bugfix` | ralph | 버그 수정 (테스트 통과까지 반복) |
-| `refactor` | large | 코드 리팩토링 |
-| `migration` | large | 데이터/스키마 마이그레이션 |
-| `docs` | small | 문서 작성/업데이트 |
-
----
-
 ## .claude/settings.local.json
 
 `vela init`이 자동 생성합니다. 수동 수정은 권장하지 않습니다.
 
-주요 설정:
+### Hook 등록
+
+| 이벤트 | Hook | 설명 |
+|--------|------|------|
+| `PreToolUse` | gate-keeper | R/W 모드 강제, 시크릿 감지, 민감 파일 보호 |
+| `PreToolUse` | gate-guard | 파이프라인 순서 강제, TDD, git 게이트 |
+| `PostToolUse` | tracker | trace.jsonl 로깅 |
+
+### permissions (Claude Code 자체 기능)
 
 | 섹션 | 설명 |
 |------|------|
-| `hooks.PreToolUse` | Gate Keeper + Gate Guard 등록 |
-| `hooks.PostToolUse` | Tracker 등록 |
-| `hooks.UserPromptSubmit` | Orchestrator 등록 |
-| `hooks.SessionStart` | 중단 세션 복구 |
-| `hooks.Stop` | 활성 파이프라인 확인 |
-| `hooks.PreCompact` / `PostCompact` | 상태 보존/복원 |
-| `hooks.SubagentStart` | 에이전트 브리핑 |
-| `hooks.TaskCompleted` | 작업 완료 검증 |
-| `permissions.deny` | 위험 명령 절대 차단 |
-| `permissions.allow` | Vela CLI 명령 허용 |
+| `permissions.allow` | Vela CLI 명령 허용: `Bash(vela *)`, `Bash(npx vela *)` |
+| `permissions.deny` | 위험 명령 절대 차단 (rm -rf, git push --force 등) |
 
 ---
 
@@ -182,21 +127,6 @@ vela agents show researcher
 ```
 
 > `vela init`은 이미 존재하는 agent 파일을 덮어쓰지 않으므로, 오버라이드가 안전하게 유지됩니다.
-
----
-
-## Guidelines 커스터마이징
-
-`.vela/guidelines/` 디렉토리의 마크다운 파일을 수정하여 팀의 코딩 표준을 반영합니다:
-
-| 파일 | 내용 |
-|------|------|
-| `index.md` | 가이드라인 목차 |
-| `coding-standards.md` | 코딩 표준 (네이밍, 포맷, 구조) |
-| `error-handling.md` | 에러 처리 패턴 |
-| `testing-strategy.md` | 테스트 전략 (단위, 통합, E2E) |
-
-Gate Guard가 execute 단계에서 이 가이드라인을 참조합니다.
 
 ---
 
