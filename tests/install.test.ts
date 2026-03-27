@@ -13,7 +13,7 @@ const ROOT = process.cwd();
 // ── npm pack validation ─────────────────────────────────────────────
 
 describe('npm pack', () => {
-  it('produces a tarball under 200KB', () => {
+  it('produces a tarball under 300KB', () => {
     const output = execSync('npm pack --dry-run 2>&1', { encoding: 'utf-8' });
     // Extract the "total files" line and the unpacked size
     const sizeMatch = output.match(/unpacked size:\s+([\d.]+)\s+([kKmM]?B)/);

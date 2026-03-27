@@ -79,16 +79,16 @@ check_prereqs() {
 
   # Check node
   if ! command -v node >/dev/null 2>&1; then
-    error "Node.js is not installed. Please install Node.js >= 22 and try again."
+    error "Node.js is not installed. Please install Node.js >= 18 and try again."
     exit 1
   fi
 
   NODE_MAJOR=$(node -v | sed 's/^v//' | cut -d. -f1)
-  if [ "$NODE_MAJOR" -lt 22 ]; then
-    error "Node.js >= 22 required (found v$(node -v | sed 's/^v//')). Please upgrade."
+  if [ "$NODE_MAJOR" -lt 18 ]; then
+    error "Node.js >= 18 required (found v$(node -v | sed 's/^v//')). Please upgrade."
     exit 1
   fi
-  info "Node.js v$(node -v | sed 's/^v//') found (>= 22 required)"
+  info "Node.js v$(node -v | sed 's/^v//') found (>= 18 required)"
 
   # Check npm
   if ! command -v npm >/dev/null 2>&1; then

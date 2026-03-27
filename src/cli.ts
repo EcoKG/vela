@@ -810,6 +810,15 @@ program
   .command('tui')
   .description('Launch TUI dashboard')
   .action(async () => {
+    const nodeMajor = parseInt(process.versions.node, 10);
+    if (nodeMajor < 20) {
+      process.stderr.write(
+        `Error: 'vela tui' requires Node.js 20 or later (current: ${process.versions.node}).\n` +
+        `The TUI dashboard uses ink v6 + React 19 which need Node 20+.\n` +
+        `All other vela commands work on Node 18+.\n`
+      );
+      process.exit(1);
+    }
     const { runTui } = await import('./tui/App.js');
     runTui();
   });
