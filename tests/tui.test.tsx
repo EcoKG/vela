@@ -5,6 +5,8 @@ import { Header } from '../src/tui/Header.js';
 import { PipelinePanel } from '../src/tui/PipelinePanel.js';
 import { TaskProgress } from '../src/tui/TaskProgress.js';
 import { AutoModeStatus } from '../src/tui/AutoModeStatus.js';
+import { ToolStatus } from '../src/tui/ToolStatus.js';
+import { GovernanceStatus } from '../src/tui/GovernanceStatus.js';
 import type { Pipeline, Task } from '../src/state.js';
 import type { AutoModeState } from '../src/auto-mode.js';
 
@@ -188,5 +190,108 @@ describe('AutoModeStatus', () => {
     const { lastFrame } = render(<AutoModeStatus state={state} />);
     const frame = lastFrame()!;
     expect(frame).toContain('task 2 of 3');
+  });
+});
+
+// ── ToolStatus ─────────────────────────────────────────────────────
+
+describe('ToolStatus', () => {
+  it('renders blocked verdict with gate code when gateVerdict.blocked is true', () => {
+    const { lastFrame } = render(
+      <ToolStatus toolName="write_file" isRunning={true} gateVerdict={{ blocked: true, code: 'VK-03' }} />
+    );
+    const frame = lastFrame()!;
+    expect(frame).toContain('BLOCKED');
+    expect(frame).toContain('VK-03');
+    expect(frame).toContain('write_file');
+  });
+
+  it('renders normal spinner when no gateVerdict', () => {
+    const { lastFrame } = render(
+      <ToolStatus toolName="read_file" isRunning={true} />
+    );
+    const frame = lastFrame()!;
+    expect(frame).toContain('Running tool');
+    expect(frame).toContain('read_file');
+  });
+
+  it('renders normal spinner when gateVerdict.blocked is false', () => {
+    const { lastFrame } = render(
+      <ToolStatus toolName="read_file" isRunning={true} gateVerdict={{ blocked: false, code: 'VK-01' }} />
+    );
+    const frame = lastFrame()!;
+    expect(frame).toContain('Running tool');
+    expect(frame).toContain('read_file');
+    expect(frame).not.toContain('BLOCKED');
+  });
+
+  it('renders blocked state even when isRunning is false', () => {
+    const { lastFrame } = render(
+      <ToolStatus toolName="write_file" isRunning={false} gateVerdict={{ blocked: true, code: 'VG-05' }} />
+    );
+    const frame = lastFrame()!;
+    expect(frame).toContain('BLOCKED');
+    expect(frame).toContain('VG-05');
+  });
+
+  it('returns null when no toolName and no gateVerdict', () => {
+    const { lastFrame } = render(<ToolStatus />);
+    const frame = lastFrame()!;
+    expect(frame).toBe('');
+  });
+});
+
+// ── GovernanceStatus ───────────────────────────────────────────────
+
+describe('GovernanceStatus', () => {
+  it('renders mode label when mode is provided', () => {
+    const { lastFrame } = render(<GovernanceStatus mode="execute" />);
+    const frame = lastFrame()!;
+    expect(frame).toContain('Mode');
+    expect(frame).toContain('execute');
+  });
+
+  it('renders nothing when mode is null', () => {
+    const { lastFrame } = render(<GovernanceStatus mode={null} />);
+    const frame = lastFrame()!;
+    expect(frame).toBe('');
+  });
+
+  it('renders nothing when mode is undefined', () => {
+    const { lastFrame } = render(<GovernanceStatus />);
+    const frame = lastFrame()!;
+    expect(frame).toBe('');
+  });
+
+  it('shows block count when consecutiveBlocks > 0', () => {
+    const { lastFrame } = render(<GovernanceStatus mode="read" consecutiveBlocks={3} />);
+    const frame = lastFrame()!;
+    expect(frame).toContain('Blocks');
+    expect(frame).toContain('3');
+  });
+
+  it('does not show block count when consecutiveBlocks is 0', () => {
+    const { lastFrame } = render(<GovernanceStatus mode="execute" consecutiveBlocks={0} />);
+    const frame = lastFrame()!;
+    expect(frame).not.toContain('Blocks');
+  });
+
+  it('shows budget limit alongside block count', () => {
+    const { lastFrame } = render(<GovernanceStatus mode="read" consecutiveBlocks={2} budgetLimit={5} />);
+    const frame = lastFrame()!;
+    expect(frame).toContain('2');
+    expect(frame).toContain('/5');
+  });
+
+  it('color-codes execute mode as green', () => {
+    const { lastFrame } = render(<GovernanceStatus mode="execute" />);
+    const frame = lastFrame()!;
+    expect(frame).toContain('execute');
+  });
+
+  it('color-codes read mode as yellow', () => {
+    const { lastFrame } = render(<GovernanceStatus mode="read" />);
+    const frame = lastFrame()!;
+    expect(frame).toContain('read');
   });
 });

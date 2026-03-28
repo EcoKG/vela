@@ -150,3 +150,48 @@ export type {
   StepBreakdown,
   TraceEntry,
 } from './cost.js';
+
+// ── Auth ───────────────────────────────────────────────────────────
+export {
+  resolveApiKey,
+  saveApiKey,
+  getAuthFilePath,
+  addProfile,
+  listProfiles,
+  useProfile,
+  removeProfile,
+  getActiveProfile,
+  maskApiKey,
+} from './auth.js';
+export type { AuthProfile, AuthFileV2 } from './auth.js';
+
+// ── Claude client ──────────────────────────────────────────────────
+export {
+  createClaudeClient,
+  sendMessage,
+  extractToolUseBlocks,
+  isToolUseResponse,
+} from './claude-client.js';
+export type {
+  ChatMessage,
+  SendMessageOptions,
+} from './claude-client.js';
+
+// ── Tool engine ────────────────────────────────────────────────────
+export {
+  runToolLoop,
+  executeTool,
+  TOOL_DEFINITIONS,
+} from './tool-engine.js';
+export type { ToolResult } from './tool-engine.js';
+
+// ── TUI components ─────────────────────────────────────────────────
+export { ChatApp } from './tui/ChatApp.js';
+export type { ChatAppProps } from './tui/ChatApp.js';
+
+// ── Governance ─────────────────────────────────────────────────────
+export { checkGate, buildGateContext } from './governance/index.js';
+export type { GateContext, GateResult } from './governance/index.js';
+
+// ── Model aliases ──────────────────────────────────────────────────
+export { resolveModelAlias, DEFAULT_MODEL, MODEL_ALIASES, KNOWN_MODELS } from './models.js';

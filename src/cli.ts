@@ -47,6 +47,21 @@ import {
   VALID_CLASSES,
 } from './requirements.js';
 import type { RequirementStatus, RequirementClass } from './requirements.js';
+import { resolveApiKey, addProfile, listProfiles, useProfile, removeProfile, getActiveProfile, maskApiKey } from './auth.js';
+import type { AuthProfile, AuthFileV2 } from './auth.js';
+import { resolveModelAlias, DEFAULT_MODEL } from './models.js';
+import { createInterface } from 'node:readline';
+import { createClaudeClient } from './claude-client.js';
+import type { ChatMessage } from './claude-client.js';
+import { runToolLoop } from './tool-engine.js';
+import {
+  openSessionDb,
+  getSession,
+  getLatestSession,
+  getMessages,
+  listSessions,
+} from './session.js';
+import { homedir } from 'node:os';
 
 const program = new Command();
 
@@ -804,6 +819,170 @@ discussCmd
     process.exit(result.ok ? 0 : 1);
   });
 
+// ── Auth commands ──────────────────────────────────────────────────
+
+/**
+ * Prompts for a line of input via readline, optionally masking with '*'.
+ */
+function promptInput(prompt: string, mask = false): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stderr });
+    if (mask) {
+      // Overwrite each character with '*' as it's typed
+      process.stdin.on('data', function onData(char: Buffer) {
+        const str = char.toString();
+        // Handle newline — stop masking
+        if (str === '\n' || str === '\r' || str === '\r\n') {
+          process.stdin.removeListener('data', onData);
+          return;
+        }
+        // Move cursor back and write mask character
+        process.stderr.clearLine(0);
+        process.stderr.cursorTo(0);
+        process.stderr.write(prompt + '*'.repeat(rl.line.length));
+      });
+    }
+    rl.question(prompt, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
+
+const authCmd = program
+  .command('auth')
+  .description('Manage API key profiles');
+
+authCmd
+  .command('add')
+  .description('Add a named API key profile')
+  .argument('<name>', 'Profile name')
+  .action(async (name: string) => {
+    try {
+      const apiKey = await promptInput('API key: ', true);
+      process.stderr.write('\n');
+      if (!apiKey) {
+        console.log(JSON.stringify({ ok: false, error: 'No API key provided' }));
+        process.exit(1);
+      }
+      addProfile(name, apiKey);
+      console.log(JSON.stringify({ ok: true, profile: name, masked_key: maskApiKey(apiKey) }));
+      process.exit(0);
+    } catch (err) {
+      console.log(JSON.stringify({ ok: false, error: (err as Error).message }));
+      process.exit(1);
+    }
+  });
+
+authCmd
+  .command('list')
+  .description('List all API key profiles')
+  .action(() => {
+    try {
+      const profiles = listProfiles();
+      if (profiles.length === 0) {
+        console.log(JSON.stringify({ ok: true, profiles: [], message: 'No profiles configured' }));
+      } else {
+        const display = profiles.map((p) => ({
+          name: p.name,
+          key: maskApiKey(p.apiKey),
+          active: p.active ? '*' : '',
+          created: p.createdAt,
+        }));
+        console.log(JSON.stringify({ ok: true, profiles: display }));
+      }
+      process.exit(0);
+    } catch (err) {
+      console.log(JSON.stringify({ ok: false, error: (err as Error).message }));
+      process.exit(1);
+    }
+  });
+
+authCmd
+  .command('use')
+  .description('Switch to a named profile')
+  .argument('<name>', 'Profile name')
+  .action((name: string) => {
+    try {
+      useProfile(name);
+      console.log(JSON.stringify({ ok: true, active: name }));
+      process.exit(0);
+    } catch (err) {
+      console.log(JSON.stringify({ ok: false, error: (err as Error).message }));
+      process.exit(1);
+    }
+  });
+
+authCmd
+  .command('remove')
+  .description('Remove a named profile')
+  .argument('<name>', 'Profile name')
+  .action((name: string) => {
+    try {
+      removeProfile(name);
+      console.log(JSON.stringify({ ok: true, removed: name }));
+      process.exit(0);
+    } catch (err) {
+      console.log(JSON.stringify({ ok: false, error: (err as Error).message }));
+      process.exit(1);
+    }
+  });
+
+authCmd
+  .command('login')
+  .description('Interactive profile setup — prompt for name and API key')
+  .action(async () => {
+    try {
+      const name = await promptInput('Profile name (default): ');
+      const profileName = name || 'default';
+      const apiKey = await promptInput('API key: ', true);
+      process.stderr.write('\n');
+      if (!apiKey) {
+        console.log(JSON.stringify({ ok: false, error: 'No API key provided' }));
+        process.exit(1);
+      }
+      addProfile(profileName, apiKey);
+      console.log(JSON.stringify({ ok: true, profile: profileName, masked_key: maskApiKey(apiKey) }));
+      process.exit(0);
+    } catch (err) {
+      console.log(JSON.stringify({ ok: false, error: (err as Error).message }));
+      process.exit(1);
+    }
+  });
+
+authCmd
+  .command('status')
+  .description('Show API key resolution status')
+  .action(() => {
+    try {
+      const activeProfile = getActiveProfile();
+      const resolved = resolveApiKey();
+      const profiles = listProfiles();
+
+      let source: string;
+      if (process.env['ANTHROPIC_API_KEY']) {
+        source = 'environment';
+      } else if (activeProfile) {
+        source = 'profile';
+      } else {
+        source = 'none';
+      }
+
+      console.log(JSON.stringify({
+        ok: true,
+        source,
+        has_key: !!resolved,
+        masked_key: resolved ? maskApiKey(resolved) : null,
+        active_profile: activeProfile?.name ?? null,
+        profile_count: profiles.length,
+      }));
+      process.exit(0);
+    } catch (err) {
+      console.log(JSON.stringify({ ok: false, error: (err as Error).message }));
+      process.exit(1);
+    }
+  });
+
 // ── TUI command ────────────────────────────────────────────────────
 
 program
@@ -821,6 +1000,152 @@ program
     }
     const { runTui } = await import('./tui/App.js');
     runTui();
+  });
+
+// ── Chat command ───────────────────────────────────────────────────
+
+program
+  .command('chat')
+  .description('Chat with Claude (interactive TUI or one-shot with a message)')
+  .argument('[message]', 'Message to send (omit for interactive TUI, or "sessions" to list)')
+  .option('-m, --model <model>', 'Model to use (alias: sonnet, opus, haiku)', DEFAULT_MODEL)
+  .option('--max-tokens <n>', 'Max response tokens', '4096')
+  .option('--system <prompt>', 'System prompt')
+  .option('--resume [sessionId]', 'Resume a previous chat session (latest if no ID given)')
+  .option('--budget <amount>', 'Session budget limit in USD')
+  .option('--auto-route', 'Enable automatic model routing based on message complexity')
+  .action(async (message: string | undefined, opts: { model: string; maxTokens: string; system?: string; resume?: string | true; budget?: string; autoRoute?: boolean }) => {
+    try {
+      // ── sessions subcommand ──────────────────────────────────
+      if (message === 'sessions') {
+        const projectRoot = findProjectRoot(process.cwd());
+        const velaDir = projectRoot ? join(projectRoot, '.vela') : join(homedir(), '.vela');
+        const sessionDb = openSessionDb(velaDir);
+        try {
+          const sessions = listSessions(sessionDb);
+          console.log(JSON.stringify({ ok: true, sessions }));
+        } finally {
+          closeDb(sessionDb);
+        }
+        process.exit(0);
+      }
+
+      const apiKey = resolveApiKey();
+      if (!apiKey) {
+        process.stderr.write(
+          'Error: No API key found. Set ANTHROPIC_API_KEY environment variable or save one with: vela auth login\n',
+        );
+        process.exit(1);
+      }
+
+      // Resolve model alias (e.g. 'sonnet' → 'claude-sonnet-4-20250514')
+      const resolvedModel = resolveModelAlias(opts.model);
+
+      // Parse budget option
+      const budgetLimit = opts.budget !== undefined ? parseFloat(opts.budget) : undefined;
+      if (budgetLimit !== undefined && (Number.isNaN(budgetLimit) || budgetLimit < 0)) {
+        process.stderr.write('Error: --budget must be a non-negative number\n');
+        process.exit(1);
+      }
+
+      // ── resume handling ──────────────────────────────────────
+      if (opts.resume !== undefined) {
+        const projectRoot = findProjectRoot(process.cwd());
+        const velaDir = projectRoot ? join(projectRoot, '.vela') : join(homedir(), '.vela');
+        const sessionDb = openSessionDb(velaDir);
+        try {
+          // opts.resume is true when --resume given without value, string when --resume <id>
+          const session = opts.resume === true
+            ? getLatestSession(sessionDb)
+            : getSession(sessionDb, opts.resume);
+
+          if (!session) {
+            const detail = opts.resume === true
+              ? 'No saved sessions found.'
+              : `Session "${opts.resume}" not found.`;
+            process.stderr.write(`⛵ [Vela] ${detail}\n`);
+            process.exit(1);
+          }
+
+          const rows = getMessages(sessionDb, session.id);
+
+          // Build initialMessages (display) and initialConversation (API content)
+          const initialMessages = rows.map((r) => ({
+            role: r.role as 'user' | 'assistant',
+            content: r.display,
+          }));
+          const initialConversation: ChatMessage[] = rows.map((r) => ({
+            role: r.role as 'user' | 'assistant',
+            content: r.content as ChatMessage['content'],
+          }));
+
+          process.stderr.write(`⛵ [Vela] Resuming session ${session.id} (${session.title ?? 'untitled'})\n`);
+
+          const nodeMajor = parseInt(process.versions.node, 10);
+          if (nodeMajor < 20) {
+            process.stderr.write(
+              `Error: Interactive chat requires Node.js 20 or later (current: ${process.versions.node}).\n`,
+            );
+            process.exit(1);
+          }
+          const { ChatApp } = await import('./tui/ChatApp.js');
+          const { render } = await import('ink');
+          const React = await import('react');
+          render(React.createElement(ChatApp, {
+            apiKey,
+            model: resolvedModel,
+            maxTokens: parseInt(opts.maxTokens, 10),
+            system: opts.system ?? session.system ?? undefined,
+            sessionId: session.id,
+            initialMessages,
+            initialConversation,
+            budget: budgetLimit,
+            autoRoute: opts.autoRoute,
+          }));
+        } finally {
+          closeDb(sessionDb);
+        }
+        return;
+      }
+
+      if (message) {
+        // One-shot mode: send message and print response
+        const client = createClaudeClient(apiKey);
+        await runToolLoop(client, [{ role: 'user', content: message }], {
+          model: resolvedModel,
+          maxTokens: parseInt(opts.maxTokens, 10),
+          system: opts.system,
+          onText: (text) => process.stdout.write(text),
+        });
+        process.stdout.write('\n');
+      } else {
+        // Interactive TUI mode
+        const nodeMajor = parseInt(process.versions.node, 10);
+        if (nodeMajor < 20) {
+          process.stderr.write(
+            `Error: Interactive chat requires Node.js 20 or later (current: ${process.versions.node}).\n` +
+            `The TUI uses ink v6 + React 19 which need Node 20+.\n` +
+            `Use 'vela chat "message"' for one-shot mode on Node 18+.\n`
+          );
+          process.exit(1);
+        }
+        const { ChatApp } = await import('./tui/ChatApp.js');
+        const { render } = await import('ink');
+        const React = await import('react');
+        render(React.createElement(ChatApp, {
+          apiKey,
+          model: resolvedModel,
+          maxTokens: parseInt(opts.maxTokens, 10),
+          system: opts.system,
+          budget: budgetLimit,
+          autoRoute: opts.autoRoute,
+        }));
+      }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[Vela] ${msg}\n`);
+      process.exit(1);
+    }
   });
 
 program.parse();
