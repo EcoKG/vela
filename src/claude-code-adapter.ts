@@ -1,18 +1,19 @@
 /**
  * Claude Code CLI streaming adapter.
  *
- * Bridges `@anthropic-ai/claude-agent-sdk`'s `query()` to Vela's
- * `sendMessage()` contract. Produces the same Anthropic `Message`
- * return type, streams text deltas via `onText`, and strips
- * tool-use blocks from the response.
+ * Uses `@anthropic-ai/claude-agent-sdk` query() API to send messages
+ * through the locally installed Claude Code CLI. This leverages Claude
+ * Code's OAuth session — no API key needed.
+ *
+ * SDK v0.2.x API:
+ *   query({ prompt, options? }) → Query (AsyncGenerator<SDKMessage>)
+ *   SDKMessage = SDKAssistantMessage | SDKResultMessage | ...
+ *   SDKAssistantMessage.message = BetaMessage (Anthropic API format)
+ *   SDKResultMessage.result = final text, .usage = token counts
  */
 import type { Message } from '@anthropic-ai/sdk/resources/messages/messages.js';
-import type { ChatMessage, SendMessageOptions } from './claude-client.js';
-import type {
-  MessageEvent,
-  QueryOptions,
-  ContentBlock,
-} from './claude-code-types.js';
+import type { ChatMessage } from './claude-client.js';
+import type { SendMessageOptions } from './claude-client.js';
 import { getClaudePath } from './claude-code-readiness.js';
 import { DEFAULT_MODEL } from './models.js';
 
@@ -31,7 +32,6 @@ function extractLastUserPrompt(messages: ChatMessage[]): string {
       return msg.content;
     }
 
-    // ContentBlock[] or ContentBlockParam[] — extract text blocks
     const textParts: string[] = [];
     for (const block of msg.content) {
       if ('type' in block && block.type === 'text' && 'text' in block) {
@@ -50,8 +50,7 @@ function extractLastUserPrompt(messages: ChatMessage[]): string {
  * Sends a message to Claude via the Claude Code CLI SDK.
  *
  * Dynamically imports `@anthropic-ai/claude-agent-sdk` to avoid a
- * hard compile-time dependency. If the SDK is not installed, throws
- * a descriptive error.
+ * hard compile-time dependency.
  *
  * @param messages  Conversation history (only last user message is sent)
  * @param options   Standard Vela send options (model, system, onText, etc.)
@@ -68,17 +67,13 @@ export async function sendMessageViaCli(
   } = options;
 
   // ── Dynamic import ────────────────────────────────────────
-  let query: (
-    prompt: string,
-    options?: QueryOptions,
-  ) => AsyncIterable<MessageEvent>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let queryFn: (params: { prompt: string; options?: Record<string, unknown> }) => AsyncGenerator<any, void>;
 
   try {
-    // Dynamic import — the package is optional and may not be installed.
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore TS2307: module is optional, resolved at runtime
     const sdk = await import('@anthropic-ai/claude-agent-sdk');
-    query = sdk.query;
+    queryFn = sdk.query;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write(
@@ -93,12 +88,21 @@ export async function sendMessageViaCli(
   const prompt = extractLastUserPrompt(messages);
   const claudePath = getClaudePath();
 
-  const queryOptions: QueryOptions = {
+  // Build options matching SDK v0.2.x Options type
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const queryOptions: Record<string, any> = {
     model,
     permissionMode: 'bypassPermissions',
-    ...(system ? { systemPrompt: system } : {}),
-    ...(claudePath ? { pathToClaudeCodeExecutable: claudePath } : {}),
+    allowDangerouslySkipPermissions: true,
+    maxTurns: 1,
   };
+
+  if (system) {
+    queryOptions.systemPrompt = system;
+  }
+  if (claudePath) {
+    queryOptions.pathToClaudeCodeExecutable = claudePath;
+  }
 
   // ── Stream and accumulate ─────────────────────────────────
   let accumulatedText = '';
@@ -106,31 +110,41 @@ export async function sendMessageViaCli(
   let outputTokens = 0;
 
   try {
-    const stream = query(prompt, queryOptions);
+    const stream = queryFn({ prompt, options: queryOptions });
 
     for await (const event of stream) {
-      if (
-        event.type === 'stream_event' &&
-        event.event.type === 'content_block_delta' &&
-        event.event.delta.type === 'text_delta'
-      ) {
-        const text = event.event.delta.text;
-        accumulatedText += text;
-        if (onText) {
-          onText(text);
+      // SDKAssistantMessage: { type: 'assistant', message: BetaMessage }
+      if (event.type === 'assistant' && event.message) {
+        const betaMsg = event.message;
+        if (betaMsg.content && Array.isArray(betaMsg.content)) {
+          for (const block of betaMsg.content) {
+            if (block.type === 'text' && block.text) {
+              // Only emit new text (BetaMessage may repeat content)
+              const newText = block.text.slice(accumulatedText.length);
+              if (newText) {
+                accumulatedText += newText;
+                if (onText) onText(newText);
+              }
+            }
+          }
         }
-      } else if (event.type === 'result') {
-        // Capture usage from result message
-        if (event.result.usage) {
-          inputTokens = event.result.usage.input_tokens;
-          outputTokens = event.result.usage.output_tokens;
+        // Capture usage from assistant message
+        if (betaMsg.usage) {
+          inputTokens = betaMsg.usage.input_tokens ?? inputTokens;
+          outputTokens = betaMsg.usage.output_tokens ?? outputTokens;
         }
-        // Extract text from result content blocks (strip tool-use)
-        if (event.result.content && !accumulatedText) {
-          accumulatedText = event.result.content
-            .filter((b: ContentBlock) => b.type === 'text')
-            .map((b: ContentBlock) => b.text ?? '')
-            .join('');
+      }
+
+      // SDKResultMessage: { type: 'result', subtype: 'success', result: string, usage: ... }
+      if (event.type === 'result') {
+        if (event.usage) {
+          inputTokens = event.usage.input_tokens ?? inputTokens;
+          outputTokens = event.usage.output_tokens ?? outputTokens;
+        }
+        // If we didn't get text from streaming, use result text
+        if (!accumulatedText && event.result) {
+          accumulatedText = event.result;
+          if (onText) onText(accumulatedText);
         }
       }
     }
@@ -141,7 +155,6 @@ export async function sendMessageViaCli(
   }
 
   // ── Build Message ─────────────────────────────────────────
-  // Only include text content — tool-use blocks are stripped
   const content: Array<{ type: 'text'; text: string; citations: null }> = [];
   if (accumulatedText) {
     content.push({ type: 'text', text: accumulatedText, citations: null });

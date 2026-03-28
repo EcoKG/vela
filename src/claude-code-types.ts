@@ -1,92 +1,90 @@
 /**
- * Lightweight type stubs for @anthropic-ai/claude-agent-sdk message types.
+ * Lightweight type stubs for @anthropic-ai/claude-agent-sdk.
  *
- * These provide type safety for the Claude Code CLI adapter without
- * requiring a hard compile-time dependency on the SDK package.
- * Shapes are based on the SDK's public API as of v0.x.
+ * These match the SDK v0.2.x API surface used by Vela's adapter.
+ * Only the types Vela actually touches are stubbed here.
  */
 
-// ── Conversation types ────────────────────────────────────────
+// ── SDK Message types ─────────────────────────────────────────
 
-/** A conversation message in claude-agent-sdk format. */
-export interface ConversationMessage {
-  role: 'user' | 'assistant';
-  content: string | ContentBlock[];
+/** Usage info embedded in BetaMessage and SDKResultMessage */
+export interface UsageInfo {
+  input_tokens: number;
+  output_tokens: number;
 }
 
-/** A content block within a conversation message. */
+/** A content block in a BetaMessage */
 export interface ContentBlock {
   type: 'text' | 'tool_use' | 'tool_result';
   text?: string;
   id?: string;
   name?: string;
   input?: unknown;
-  tool_use_id?: string;
-  content?: string;
 }
 
-// ── Stream event types ────────────────────────────────────────
-
-/** Usage information returned in result events. */
-export interface UsageInfo {
-  input_tokens: number;
-  output_tokens: number;
-}
-
-/** Cost information returned in result events. */
-export interface CostInfo {
-  input_cost: number;
-  output_cost: number;
-  total_cost: number;
-}
-
-/** A text_delta sub-event within a stream_event. */
-export interface TextDeltaEvent {
-  type: 'content_block_delta';
-  delta: {
-    type: 'text_delta';
-    text: string;
-  };
-}
-
-/** Result message returned when the stream completes. */
-export interface ResultMessage {
+/** The Anthropic BetaMessage embedded in SDKAssistantMessage */
+export interface BetaMessage {
   role: 'assistant';
   content: ContentBlock[];
   model: string;
   stop_reason: string | null;
   usage: UsageInfo;
-  cost?: CostInfo;
 }
 
-/**
- * Union type for message stream events from claude-agent-sdk query().
- *
- * - `result`: Final message with usage/cost, emitted once at stream end.
- * - `stream_event`: Incremental SSE events (content_block_delta, etc.)
- *   forwarded from the underlying Anthropic API stream.
- */
-export type MessageEvent =
-  | { type: 'result'; result: ResultMessage }
-  | { type: 'stream_event'; event: TextDeltaEvent };
+/** SDKAssistantMessage — emitted during streaming */
+export interface SDKAssistantMessage {
+  type: 'assistant';
+  message: BetaMessage;
+  parent_tool_use_id: string | null;
+  uuid: string;
+  session_id: string;
+}
 
-// ── Query options ─────────────────────────────────────────────
+/** SDKResultSuccess — emitted once at stream end */
+export interface SDKResultSuccess {
+  type: 'result';
+  subtype: 'success';
+  result: string;
+  usage: UsageInfo;
+  total_cost_usd: number;
+  num_turns: number;
+  duration_ms: number;
+  session_id: string;
+}
 
-/**
- * Options passed to claude-agent-sdk's query() function.
- * Only the fields Vela uses are stubbed here.
- */
+/** SDKResultError — emitted on failure */
+export interface SDKResultError {
+  type: 'result';
+  subtype: 'error';
+  error: string;
+  session_id: string;
+}
+
+/** Union of result types */
+export type SDKResultMessage = SDKResultSuccess | SDKResultError;
+
+/** Union of all message types Vela cares about */
+export type SDKMessage = SDKAssistantMessage | SDKResultMessage | {
+  type: string;
+  [key: string]: unknown;
+};
+
+// ── Query API ─────────────────────────────────────────────────
+
+/** Options passed to query() — subset Vela uses */
 export interface QueryOptions {
-  /** Model to use (e.g. 'claude-sonnet-4-20250514'). */
   model?: string;
-  /** System prompt. */
   systemPrompt?: string;
-  /** Permission mode for tool execution. */
-  permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions';
-  /** Path to the claude CLI executable. */
+  permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'dontAsk';
+  allowDangerouslySkipPermissions?: boolean;
   pathToClaudeCodeExecutable?: string;
-  /** AbortController for cancellation. */
   abortController?: AbortController;
-  /** Maximum tokens for the response (maps to max_turns or similar). */
   maxTurns?: number;
+  maxBudgetUsd?: number;
 }
+
+/** The query() function signature */
+export type QueryFunction = (params: {
+  prompt: string;
+  options?: QueryOptions;
+}) => AsyncGenerator<SDKMessage, void>;
