@@ -8,7 +8,7 @@ set -eu
 # Configuration (override via env)
 # ---------------------------------------------------------------------------
 VELA_REPO="${VELA_REPO:-EcoKG/vela}"
-VELA_VERSION="${VELA_VERSION:-0.1.1}"
+VELA_VERSION="${VELA_VERSION:-0.2.0}"
 TARBALL_NAME="vela-cli-${VELA_VERSION}.tgz"
 DOWNLOAD_URL="https://github.com/${VELA_REPO}/releases/download/v${VELA_VERSION}/${TARBALL_NAME}"
 

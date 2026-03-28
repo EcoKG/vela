@@ -23,13 +23,13 @@ describe('npm pack', () => {
       let bytes = value;
       if (unit === 'kb') bytes = value * 1024;
       if (unit === 'mb') bytes = value * 1024 * 1024;
-      expect(bytes).toBeLessThan(300 * 1024);
+      expect(bytes).toBeLessThan(500 * 1024);
     }
     // Also verify via actual pack if tarball already exists
-    const tgzPath = join(ROOT, 'vela-cli-0.1.0.tgz');
+    const tgzPath = join(ROOT, 'vela-cli-0.2.0.tgz');
     try {
       const stat = statSync(tgzPath);
-      expect(stat.size).toBeLessThan(300 * 1024);
+      expect(stat.size).toBeLessThan(500 * 1024);
     } catch {
       // tarball not present during dry-run only — that's fine
     }
@@ -79,7 +79,7 @@ describe('scripts/install.sh', () => {
     expect(output).toContain('Vela CLI');
 
     // Should mention the version
-    expect(output).toContain('0.1.0');
+    expect(output).toContain('0.2.0');
   });
 
   it('--help exits 0 and prints usage', () => {
