@@ -147,7 +147,8 @@ main() {
   fi
 
   printf "\n%s%sDone!%s Vela CLI v%s is ready.\n" "$BOLD" "$GREEN" "$RESET" "$VELA_VERSION"
-  printf "Run %svela --help%s to get started.\n" "$BOLD" "$RESET"
+  printf "Run %svela chat%s to start chatting with Claude.\n" "$BOLD" "$RESET"
+  printf "Run %svela --help%s for all commands.\n" "$BOLD" "$RESET"
 }
 
 main "$@"
