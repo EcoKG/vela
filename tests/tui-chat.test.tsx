@@ -15,9 +15,9 @@ describe('MessageList', () => {
     ];
     const { lastFrame } = render(<MessageList messages={messages} />);
     const frame = lastFrame()!;
-    expect(frame).toContain('You:');
+    expect(frame).toContain('You');
     expect(frame).toContain('Hello there');
-    expect(frame).toContain('Claude:');
+    expect(frame).toContain('⛵ Vela');
     expect(frame).toContain('Hi, how can I help?');
   });
 
@@ -29,9 +29,9 @@ describe('MessageList', () => {
       <MessageList messages={messages} streamingText="The answer is" />,
     );
     const frame = lastFrame()!;
-    expect(frame).toContain('You:');
+    expect(frame).toContain('You');
     expect(frame).toContain('What is 2+2?');
-    expect(frame).toContain('Claude:');
+    expect(frame).toContain('⛵ Vela');
     expect(frame).toContain('The answer is');
   });
 
@@ -39,8 +39,8 @@ describe('MessageList', () => {
     const { lastFrame } = render(<MessageList messages={[]} />);
     const frame = lastFrame()!;
     // Should render without crashing — no message prefixes present
-    expect(frame).not.toContain('You:');
-    expect(frame).not.toContain('Claude:');
+    expect(frame).not.toContain('You');
+    expect(frame).not.toContain('⛵ Vela');
   });
 
   it('does not render streaming section when streamingText is absent', () => {
@@ -49,11 +49,12 @@ describe('MessageList', () => {
     ];
     const { lastFrame } = render(<MessageList messages={messages} />);
     const frame = lastFrame()!;
-    expect(frame).toContain('You:');
+    expect(frame).toContain('You');
     expect(frame).toContain('Hi');
-    // Only one "role prefix" line — no streaming Claude line
-    const claudeCount = (frame.match(/Claude:/g) || []).length;
-    expect(claudeCount).toBe(0);
+    // Only the user bubble — no streaming Vela line
+    // Count occurrences of Vela label — should be 0 (no streaming text)
+    const velaMatches = frame.match(/⛵ Vela/g) || [];
+    expect(velaMatches.length).toBe(0);
   });
 });
 

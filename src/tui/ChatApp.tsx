@@ -2,14 +2,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 
 import { Header } from './Header.js';
+import { FullscreenLayout } from './FullscreenLayout.js';
 import { MessageList } from './MessageList.js';
-import type { Message } from './MessageList.js';
+import type { Message, ScrollViewRef } from './MessageList.js';
+import type { ToolCallInfo } from './ToolCallBlock.js';
 import { ChatInput } from './ChatInput.js';
 import { ToolStatus } from './ToolStatus.js';
 import { GovernanceStatus } from './GovernanceStatus.js';
 import { Dashboard } from './Dashboard.js';
 import { HelpOverlay } from './HelpOverlay.js';
 import { handleSlashCommand } from './shortcuts.js';
+import { theme } from './theme.js';
 import { BudgetManager } from '../budget-manager.js';
 import type { BudgetStatus } from '../budget-manager.js';
 
@@ -76,6 +79,7 @@ export interface ChatAppProps {
 // ── Constants ─────────────────────────────────────────────────
 
 const MAX_TOOL_ITERATIONS = 10;
+const MAX_QUEUE_SIZE = 5;
 
 // ── Component ─────────────────────────────────────────────────
 
@@ -106,6 +110,10 @@ export function ChatApp({
   // Ref mirrors isStreaming for useInput closure (avoids stale captures)
   const isStreamingRef = useRef(false);
 
+  // Message queue for async input during streaming
+  const messageQueueRef = useRef<string[]>([]);
+  const [queueLength, setQueueLength] = useState(0);
+
   /** Update both state and ref to keep them synchronized. */
   function setStreamingState(value: boolean) {
     isStreamingRef.current = value;
@@ -123,6 +131,10 @@ export function ChatApp({
   const [gateVerdict, setGateVerdict] = useState<GateVerdict | null>(null);
   const [consecutiveBlocks, setConsecutiveBlocks] = useState(0);
   const [pipelineMode, setPipelineMode] = useState<string | null>(null);
+
+  // Scroll state for MessageList ScrollView
+  const scrollRef = useRef<ScrollViewRef>(null);
+  const userScrolledUpRef = useRef(false);
 
   // Token tracking
   const tokenTrackerRef = useRef(new TokenTracker());
@@ -180,6 +192,13 @@ export function ChatApp({
     };
   }, []);
 
+  // Auto-scroll to bottom when new messages arrive (skip if user has scrolled up)
+  useEffect(() => {
+    if (!userScrolledUpRef.current) {
+      scrollRef.current?.scrollToBottom();
+    }
+  }, [messages.length]);
+
   // Keyboard shortcuts
   useInput((input, key) => {
     if (key.ctrl && input === 'd' && !isStreamingRef.current) {
@@ -195,8 +214,28 @@ export function ChatApp({
       setHelpVisible(false);
       return;
     }
-    if (input === 'q' && !isStreamingRef.current) {
-      exit();
+    // Scroll key bindings — only when not streaming
+    if (!isStreamingRef.current) {
+      if (key.upArrow) {
+        scrollRef.current?.scrollBy(-1);
+        userScrolledUpRef.current = true;
+        return;
+      }
+      if (key.downArrow) {
+        scrollRef.current?.scrollBy(1);
+        return;
+      }
+      if (key.pageUp) {
+        const viewportHeight = scrollRef.current?.getViewportHeight?.() ?? 10;
+        scrollRef.current?.scrollBy(-viewportHeight);
+        userScrolledUpRef.current = true;
+        return;
+      }
+      if (key.pageDown) {
+        const viewportHeight = scrollRef.current?.getViewportHeight?.() ?? 10;
+        scrollRef.current?.scrollBy(viewportHeight);
+        return;
+      }
     }
   });
 
@@ -227,6 +266,9 @@ export function ChatApp({
   async function handleSubmit(input: string) {
     // Guard: ignore empty/whitespace input
     if (!input.trim()) return;
+
+    // Reset scroll-to-bottom tracking when user sends a new message
+    userScrolledUpRef.current = false;
 
     // Intercept slash commands before API call
     const slashResult = handleSlashCommand(input, {
@@ -409,6 +451,30 @@ export function ChatApp({
       }
     }
 
+    // Queue logic: if streaming, queue the message instead of processing directly
+    if (isStreamingRef.current) {
+      if (messageQueueRef.current.length >= MAX_QUEUE_SIZE) {
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `[vela] 큐가 가득 찼습니다 (${MAX_QUEUE_SIZE}/${MAX_QUEUE_SIZE})` },
+        ]);
+      } else {
+        messageQueueRef.current.push(input);
+        const len = messageQueueRef.current.length;
+        setQueueLength(len);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `[vela] 메시지가 큐에 추가되었습니다 (${len}/${MAX_QUEUE_SIZE})` },
+        ]);
+      }
+      return;
+    }
+
+    processMessage(input);
+  }
+
+  /** Core message processing — separated from handleSubmit for queue support. */
+  async function processMessage(input: string) {
     const userMessage: Message = { role: 'user', content: input };
 
     // Budget check — block BEFORE sending to API
@@ -486,7 +552,6 @@ export function ChatApp({
             { role: 'assistant', content: finalText },
           ]);
           setStreamingText('');
-          setStreamingState(false);
         }
 
         // Save messages to session DB (fail-open per K013)
@@ -546,6 +611,9 @@ export function ChatApp({
       trackUsage(response);
       let iterations = 0;
 
+      // Accumulate tool call metadata across all iterations
+      const allToolCalls: ToolCallInfo[] = [];
+
       // Tool loop: keep going while Claude wants to use tools
       while (isToolUseResponse(response) && iterations < MAX_TOOL_ITERATIONS) {
         // Check retry budget before executing
@@ -591,12 +659,27 @@ export function ChatApp({
             toolCtx,
           );
 
-          // Detect gate blocks and update TUI state
+          // Build ToolCallInfo for inline display
+          let tcStatus: ToolCallInfo['status'] = 'complete';
+          let tcGateCode: string | undefined;
           if (is_error && result.includes('BLOCKED')) {
+            tcStatus = 'blocked';
             const match = result.match(/BLOCKED \[([^\]]+)\]/);
-            const code = match?.[1] ?? 'UNKNOWN';
+            tcGateCode = match?.[1] ?? 'UNKNOWN';
+          }
+
+          allToolCalls.push({
+            name: block.name,
+            status: tcStatus,
+            result,
+            isError: is_error || undefined,
+            gateCode: tcGateCode,
+          });
+
+          // Detect gate blocks and update TUI state
+          if (tcStatus === 'blocked') {
             if (mountedRef.current) {
-              setGateVerdict({ blocked: true, code });
+              setGateVerdict({ blocked: true, code: tcGateCode! });
               setConsecutiveBlocks((prev) => prev + 1);
             }
           } else {
@@ -649,10 +732,12 @@ export function ChatApp({
       ];
 
       if (mountedRef.current) {
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: finalText },
-        ]);
+        const assistantMsg: Message = {
+          role: 'assistant',
+          content: finalText,
+          ...(allToolCalls.length > 0 ? { toolCalls: allToolCalls } : {}),
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
         setStreamingText('');
       }
 
@@ -702,10 +787,6 @@ export function ChatApp({
         }
       }
 
-      if (mountedRef.current) {
-        setStreamingState(false);
-      }
-
       // Save messages to session DB (fail-open per K013)
       if (sessionDbRef.current && sessionIdRef.current) {
         try {
@@ -730,22 +811,30 @@ export function ChatApp({
       if (mountedRef.current) {
         const msg = err instanceof Error ? err.message : String(err);
         setError(msg);
-        setStreamingState(false);
         setStreamingText('');
         setCurrentTool(null);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setStreamingState(false);
+      }
+
+      // Queue drain: process next queued message if any (K016 — ref reads latest state)
+      if (messageQueueRef.current.length > 0) {
+        const next = messageQueueRef.current.shift()!;
+        setQueueLength(messageQueueRef.current.length);
+        // Do NOT await — fire-and-forget to avoid stacking (processMessage sets isStreaming internally)
+        processMessage(next);
       }
     }
   }
 
   return (
-    <Box flexDirection="column">
-      <Header />
-      <GovernanceStatus
-        mode={pipelineMode}
-        consecutiveBlocks={consecutiveBlocks}
-        budgetLimit={DEFAULT_RETRY_BUDGET}
-      />
-      {dashboardVisible && (
+    <FullscreenLayout
+      headerHeight={4}
+      inputHeight={2}
+      sidebarVisible={dashboardVisible}
+      sidebar={
         <Dashboard
           inputTokens={dashboardState.inputTokens}
           outputTokens={dashboardState.outputTokens}
@@ -764,20 +853,41 @@ export function ChatApp({
           routedModel={routedModel}
           providerType={provider.type}
         />
-      )}
-      <HelpOverlay visible={helpVisible} />
-      <MessageList key={clearCount} messages={messages} streamingText={streamingText} />
-      <ToolStatus
-        toolName={currentTool ?? undefined}
-        isRunning={currentTool !== null}
-        gateVerdict={gateVerdict}
-      />
-      {error ? (
-        <Box>
-          <Text color="red">Error: {error}</Text>
+      }
+      header={
+        <Box flexDirection="column">
+          <Header />
+          <GovernanceStatus
+            mode={pipelineMode}
+            consecutiveBlocks={consecutiveBlocks}
+            budgetLimit={DEFAULT_RETRY_BUDGET}
+          />
         </Box>
-      ) : null}
-      <ChatInput onSubmit={handleSubmit} isDisabled={isStreaming} />
-    </Box>
+      }
+      body={
+        <Box flexDirection="column" flexGrow={1}>
+          <HelpOverlay visible={helpVisible} />
+          <MessageList key={clearCount} ref={scrollRef} messages={messages} streamingText={streamingText} />
+          <ToolStatus
+            toolName={currentTool ?? undefined}
+            isRunning={currentTool !== null}
+            gateVerdict={gateVerdict}
+          />
+          {error ? (
+            <Box>
+              <Text color={theme.error}>Error: {error}</Text>
+            </Box>
+          ) : null}
+        </Box>
+      }
+      input={
+        <Box>
+          <ChatInput onSubmit={handleSubmit} isStreaming={isStreaming} />
+          {queueLength > 0 ? (
+            <Text color={theme.highlight}> queued: {queueLength}/{MAX_QUEUE_SIZE}</Text>
+          ) : null}
+        </Box>
+      }
+    />
   );
 }

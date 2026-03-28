@@ -3,6 +3,7 @@ import { render, Box, Text, useApp, useInput } from 'ink';
 import { join } from 'path';
 
 import { Header } from './Header.js';
+import { theme } from './theme.js';
 import { PipelinePanel } from './PipelinePanel.js';
 import { TaskProgress } from './TaskProgress.js';
 import { AutoModeStatus } from './AutoModeStatus.js';
@@ -59,8 +60,8 @@ export function App({ exitOnQ = true, velaDir }: AppProps) {
     return (
       <Box flexDirection="column">
         <Header />
-        <Text color="red">Error loading data: {error}</Text>
-        <Text color="gray" dimColor>Press q to exit</Text>
+        <Text color={theme.error}>Error loading data: {error}</Text>
+        <Text color={theme.dim} dimColor>Press q to exit</Text>
       </Box>
     );
   }
@@ -72,7 +73,7 @@ export function App({ exitOnQ = true, velaDir }: AppProps) {
       <TaskProgress tasks={tasks} />
       <AutoModeStatus state={autoMode} />
       <Box marginTop={1}>
-        <Text color="gray" dimColor>Press q to exit</Text>
+        <Text color={theme.dim} dimColor>Press q to exit</Text>
       </Box>
     </Box>
   );

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { SHORTCUT_LIST } from './shortcuts.js';
+import { theme } from './theme.js';
 
 export interface HelpOverlayProps {
   visible: boolean;
@@ -12,48 +13,60 @@ export function HelpOverlay({ visible }: HelpOverlayProps) {
   return (
     <Box
       borderStyle="single"
-      borderColor="cyan"
+      borderColor={theme.accent}
       paddingX={1}
       flexDirection="column"
     >
-      <Text color="cyan" bold>
+      <Text color={theme.accent} bold>
         ⌨ Keyboard Shortcuts
       </Text>
 
       {SHORTCUT_LIST.map((s) => (
         <Box key={s.keys}>
-          <Text color="yellow">{s.keys.padEnd(12)}</Text>
-          <Text color="white">{s.description}</Text>
+          <Text color={theme.highlight}>{s.keys.padEnd(12)}</Text>
+          <Text color={theme.text}>{s.description}</Text>
         </Box>
       ))}
 
       <Text> </Text>
-      <Text color="cyan" bold>
+      <Text color={theme.accent} bold>
         / Slash Commands
       </Text>
       <Box>
-        <Text color="yellow">{'/help'.padEnd(12)}</Text>
-        <Text color="white">Show this help overlay</Text>
+        <Text color={theme.highlight}>{'/help'.padEnd(12)}</Text>
+        <Text color={theme.text}>Show this help overlay</Text>
       </Box>
       <Box>
-        <Text color="yellow">{'/quit'.padEnd(12)}</Text>
-        <Text color="white">Exit Vela</Text>
+        <Text color={theme.highlight}>{'/quit'.padEnd(12)}</Text>
+        <Text color={theme.text}>Exit Vela</Text>
       </Box>
       <Box>
-        <Text color="yellow">{'/clear'.padEnd(12)}</Text>
-        <Text color="white">Clear message history</Text>
+        <Text color={theme.highlight}>{'/clear'.padEnd(12)}</Text>
+        <Text color={theme.text}>Clear message history</Text>
       </Box>
       <Box>
-        <Text color="yellow">{'/sessions'.padEnd(12)}</Text>
-        <Text color="white">List recent sessions</Text>
+        <Text color={theme.highlight}>{'/sessions'.padEnd(12)}</Text>
+        <Text color={theme.text}>List recent sessions</Text>
       </Box>
       <Box>
-        <Text color="yellow">{'/model'.padEnd(12)}</Text>
-        <Text color="white">Show current model or switch (/model sonnet)</Text>
+        <Text color={theme.highlight}>{'/model'.padEnd(12)}</Text>
+        <Text color={theme.text}>Show current model or switch (/model sonnet)</Text>
+      </Box>
+      <Box>
+        <Text color={theme.highlight}>{'/fresh'.padEnd(12)}</Text>
+        <Text color={theme.text}>Reset conversation context (summarize and restart)</Text>
+      </Box>
+      <Box>
+        <Text color={theme.highlight}>{'/budget'.padEnd(12)}</Text>
+        <Text color={theme.text}>Show budget status or set limit (/budget 1.00)</Text>
+      </Box>
+      <Box>
+        <Text color={theme.highlight}>{'/auto'.padEnd(12)}</Text>
+        <Text color={theme.text}>Toggle automatic model routing</Text>
       </Box>
 
       <Text> </Text>
-      <Text color="gray" italic>
+      <Text color={theme.dim} italic>
         Press Escape to close
       </Text>
     </Box>

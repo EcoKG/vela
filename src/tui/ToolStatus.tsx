@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { Spinner } from '@inkjs/ui';
+import { theme } from './theme.js';
 
 export interface GateVerdict {
   blocked: boolean;
@@ -17,7 +18,7 @@ export function ToolStatus({ toolName, isRunning, gateVerdict }: ToolStatusProps
   if (gateVerdict?.blocked) {
     return (
       <Box>
-        <Text color="red" bold>⛵ BLOCKED [{gateVerdict.code}]{toolName ? `: ${toolName}` : ''}</Text>
+        <Text color={theme.toolBlocked} bold>⛵ BLOCKED [{gateVerdict.code}]{toolName ? `: ${toolName}` : ''}</Text>
       </Box>
     );
   }

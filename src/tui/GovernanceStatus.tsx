@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
+import { theme } from './theme.js';
 
 export interface GovernanceStatusProps {
   mode?: string | null;
@@ -8,8 +9,8 @@ export interface GovernanceStatusProps {
 }
 
 const MODE_COLORS: Record<string, string> = {
-  execute: 'green',
-  read: 'yellow',
+  execute: theme.success,
+  read: theme.highlight,
 };
 
 export function GovernanceStatus({ mode, consecutiveBlocks = 0, budgetLimit }: GovernanceStatusProps) {
@@ -17,18 +18,18 @@ export function GovernanceStatus({ mode, consecutiveBlocks = 0, budgetLimit }: G
     return null;
   }
 
-  const color = MODE_COLORS[mode] || 'white';
+  const color = MODE_COLORS[mode] || theme.text;
 
   return (
     <Box>
-      <Text color="gray">⛵ Mode: </Text>
+      <Text color={theme.dim}>⛵ Mode: </Text>
       <Text color={color} bold>{mode}</Text>
       {consecutiveBlocks > 0 && (
         <>
-          <Text color="gray"> │ Blocks: </Text>
-          <Text color="red" bold>{consecutiveBlocks}</Text>
+          <Text color={theme.dim}> │ Blocks: </Text>
+          <Text color={theme.error} bold>{consecutiveBlocks}</Text>
           {budgetLimit != null && (
-            <Text color="gray">/{budgetLimit}</Text>
+            <Text color={theme.dim}>/{budgetLimit}</Text>
           )}
         </>
       )}

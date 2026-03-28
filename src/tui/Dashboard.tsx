@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Text } from 'ink';
+import { theme } from './theme.js';
 
 export interface DashboardProps {
   inputTokens: number;
@@ -46,50 +47,50 @@ export function Dashboard({
   const hasCostBreakdown = estimatedCost.inputCost > 0 || estimatedCost.outputCost > 0;
 
   return (
-    <Box borderStyle="single" borderColor="magenta" paddingX={1} flexDirection="column">
-      <Text color="magenta" bold>📊 Dashboard</Text>
+    <Box borderStyle="single" borderColor={theme.dashboard.border} paddingX={1} flexDirection="column">
+      <Text color={theme.dashboard.title} bold>📊 Dashboard</Text>
 
       <Box>
-        <Text color="white">Tokens: </Text>
-        <Text color="cyan">{inputTokens}</Text>
-        <Text color="gray"> in / </Text>
-        <Text color="cyan">{outputTokens}</Text>
-        <Text color="gray"> out / </Text>
-        <Text color="cyan">{totalTokens}</Text>
-        <Text color="gray"> total</Text>
+        <Text color={theme.text}>Tokens: </Text>
+        <Text color={theme.accent}>{inputTokens}</Text>
+        <Text color={theme.dim}> in / </Text>
+        <Text color={theme.accent}>{outputTokens}</Text>
+        <Text color={theme.dim}> out / </Text>
+        <Text color={theme.accent}>{totalTokens}</Text>
+        <Text color={theme.dim}> total</Text>
       </Box>
 
       <Box>
-        <Text color="white">Cost: </Text>
-        <Text color="green">${estimatedCost.totalCost.toFixed(4)}</Text>
+        <Text color={theme.text}>Cost: </Text>
+        <Text color={theme.success}>${estimatedCost.totalCost.toFixed(4)}</Text>
         {hasCostBreakdown && (
-          <Text color="gray"> (in: ${estimatedCost.inputCost.toFixed(4)} / out: ${estimatedCost.outputCost.toFixed(4)})</Text>
+          <Text color={theme.dim}> (in: ${estimatedCost.inputCost.toFixed(4)} / out: ${estimatedCost.outputCost.toFixed(4)})</Text>
         )}
       </Box>
 
       {budgetLimit != null && (
         <Box>
-          <Text color="white">Budget: </Text>
-          <Text color={budgetBlocked ? 'red' : budgetWarning ? 'yellow' : 'green'}>
+          <Text color={theme.text}>Budget: </Text>
+          <Text color={budgetBlocked ? theme.error : budgetWarning ? theme.highlight : theme.success}>
             ${budgetSpent.toFixed(4)} / ${budgetLimit.toFixed(4)} ({Math.round(budgetPercentage * 100)}% used)
           </Text>
-          <Text color={budgetBlocked ? 'red' : budgetWarning ? 'yellow' : 'green'}>
+          <Text color={budgetBlocked ? theme.error : budgetWarning ? theme.highlight : theme.success}>
             {' '}[${budgetRemaining.toFixed(4)} remaining]
           </Text>
-          {budgetBlocked && <Text color="red"> ⛔ BLOCKED</Text>}
-          {budgetWarning && !budgetBlocked && <Text color="yellow"> ⚠️</Text>}
+          {budgetBlocked && <Text color={theme.error}> ⛔ BLOCKED</Text>}
+          {budgetWarning && !budgetBlocked && <Text color={theme.highlight}> ⚠️</Text>}
         </Box>
       )}
 
       <Box>
-        <Text color="white">Model: </Text>
-        <Text color="cyan">{model}</Text>
+        <Text color={theme.text}>Model: </Text>
+        <Text color={theme.accent}>{model}</Text>
       </Box>
 
       {providerType != null && (
         <Box>
-          <Text color="white">Provider: </Text>
-          <Text color={providerType === 'cli' ? 'yellow' : 'cyan'}>
+          <Text color={theme.text}>Provider: </Text>
+          <Text color={providerType === 'cli' ? theme.highlight : theme.accent}>
             {providerType === 'cli' ? 'Claude Code CLI' : 'API'}
           </Text>
         </Box>
@@ -97,22 +98,22 @@ export function Dashboard({
 
       {routedModel != null && routedModel !== model && (
         <Box>
-          <Text color="white">Auto-routed: </Text>
-          <Text color="yellow">{routedModel}</Text>
+          <Text color={theme.text}>Auto-routed: </Text>
+          <Text color={theme.highlight}>{routedModel}</Text>
         </Box>
       )}
 
       {pipelineMode != null && (
         <Box>
-          <Text color="white">Pipeline: </Text>
-          <Text color="yellow">{pipelineMode}</Text>
+          <Text color={theme.text}>Pipeline: </Text>
+          <Text color={theme.highlight}>{pipelineMode}</Text>
         </Box>
       )}
 
       {sessionId != null && (
         <Box>
-          <Text color="white">Session: </Text>
-          <Text color="cyan">{sessionTitle || sessionId}</Text>
+          <Text color={theme.text}>Session: </Text>
+          <Text color={theme.accent}>{sessionTitle || sessionId}</Text>
         </Box>
       )}
     </Box>

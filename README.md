@@ -7,7 +7,7 @@
   <br />
   <em>AI Coding Agent with Built-in Governance</em>
   <br />
-  <code>v0.2.2</code>
+  <code>v0.3.0</code>
   <br />
   <br />
   <a href="#quick-start">Quick Start</a> · <a href="#why-vela">Why Vela</a> · <a href="#vela-chat">Chat Agent</a> · <a href="#governance-engine">Governance</a> · <a href="#architecture">Architecture</a> · <a href="#documentation">Docs</a>
@@ -103,11 +103,16 @@ CLI Provider는 `@anthropic-ai/claude-agent-sdk`의 `query()`를 통해 Claude C
 
 | 기능 | 설명 |
 |------|------|
-| **스트리밍 TUI** | Ink v6 + React 19 기반 인터랙티브 터미널 UI |
+| **스트리밍 TUI** | fullscreen-ink 기반 풀스크린 alternate buffer — 3-패널 레이아웃 (헤더/메시지/입력, max-width 120) |
+| **카드형 메시지 버블** | 사용자("You" 초록)/Vela("⛵ Vela" 시안)/시스템("⚙ System" 회색) round-border 카드 |
+| **사이드바 대시보드** | `Ctrl+D` 토글 — 토큰/비용/모델/세션/예산 우측 사이드바에 상시 표시 (< 60col 자동 숨김) |
+| **스크롤 영역** | 방향키(1줄)/PageUp/Down(뷰포트 높이) — 스트리밍 중에도 스크롤 가능 |
+| **비동기 메시지 큐** | 스트리밍 중 새 메시지 입력 → 큐(max 5)에 저장 → 완료 후 순차 처리. 입력 항상 활성 |
+| **테마 시스템** | 18개 semantic color token, 라이트/다크 자동 감지 (VELA_THEME → COLORFGBG → macOS defaults → dark fallback) |
 | **4개 Tool** | `Read`, `Write`, `Edit`, `Bash` — tool_use 루프 자동 실행 |
 | **Dual Provider** | API 키 → Claude Code CLI 자동 폴백 |
 | **세션 영속화** | SQLite에 대화 저장, `--resume`으로 복원 |
-| **대시보드** | `Ctrl+D` 토글 — 토큰/비용/모델/세션/예산 실시간 표시 |
+| **대시보드** | `Ctrl+D` 우측 사이드바 토글 — 토큰/비용/모델/세션/예산 상시 표시 |
 | **예산 상한** | `--budget <USD>` — 80% 경고, 100% 차단 |
 | **동적 모델 라우팅** | `--auto-route` — 메시지 복잡도 기반 haiku/sonnet/opus 자동 선택 |
 | **컨텍스트 리셋** | `/fresh` 또는 100K 토큰 자동 트리거 — Haiku 요약 기반 대화 압축 |
@@ -131,9 +136,11 @@ CLI Provider는 `@anthropic-ai/claude-agent-sdk`의 `query()`를 통해 Claude C
 
 | 단축키 | 기능 |
 |--------|------|
-| `Ctrl+D` | 대시보드 토글 (토큰/비용/모델/예산) |
+| `Ctrl+D` | 사이드바 대시보드 토글 (토큰/비용/모델/예산) |
 | `Ctrl+L` | 화면 클리어 |
 | `Escape` | 오버레이 닫기 |
+| `↑` / `↓` | 메시지 1줄 스크롤 |
+| `PageUp` / `PageDown` | 메시지 뷰포트 단위 스크롤 |
 
 ### 인증 관리
 
@@ -238,7 +245,7 @@ Tracker
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                         ⛵  V E L A  v0.2.2                     │
+│                         ⛵  V E L A  v0.3.0                     │
 │                                                                  │
 │  ┌─── Independent Agent ──────────────────────────────────────┐  │
 │  │  vela chat                                                 │  │
@@ -261,10 +268,11 @@ Tracker
 │  │  │ 100K reset  │  │ cost calc    │  │ 20 VK/VG rules   │  │  │
 │  │  └─────────────┘  └──────────────┘  └──────────────────┘  │  │
 │  │                                                            │  │
-│  │  TUI: 12 React Components (Ink v6 + React 19)             │  │
-│  │  ChatApp · Dashboard · MessageList · ToolStatus            │  │
-│  │  ChatInput · Header · HelpOverlay · PipelinePanel          │  │
-│  │  GovernanceStatus · AutoModeStatus · TaskProgress · App    │  │
+│  │  TUI: 17 React Components (Ink v6 + React 19 + fullscreen-ink)    │  │
+│  │  ChatApp · Dashboard · MessageList · ToolStatus · MessageBubble  │  │
+│  │  ChatInput · Header · HelpOverlay · PipelinePanel · ToolCallBlock│  │
+│  │  GovernanceStatus · AutoModeStatus · TaskProgress · App          │  │
+│  │  FullscreenLayout · theme.ts (18 semantic color tokens)          │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │                                                                  │
 │  ┌─── Governance Engine (Claude Code Hooks) ──────────────────┐  │
@@ -288,12 +296,12 @@ Tracker
 |------|------|
 | **Language** | TypeScript (strict, ESM, `moduleResolution: nodenext`, `target: es2022`) |
 | **State** | SQLite via `better-sqlite3` — 파이프라인, 세션, 마일스톤, 슬라이스, 태스크 |
-| **TUI** | Ink v6 + React 19 — 12개 컴포넌트, 인터랙티브 채팅 + 실시간 대시보드 |
+| **TUI** | Ink v6 + React 19 + fullscreen-ink — 17개 컴포넌트, 풀스크린 alternate buffer 채팅 + 사이드바 대시보드 + 카드형 메시지 버블 + 테마 시스템 |
 | **API** | `@anthropic-ai/sdk` — SSE 스트리밍, tool_use loop |
 | **CLI Adapter** | `@anthropic-ai/claude-agent-sdk` (optional) — Claude Code CLI 위임 |
 | **Hooks** | Claude Code hooks — PreToolUse × 1 + PostToolUse × 1 (CJS) |
 | **Governance** | ESM 모듈 — 순수 결정 함수 `checkGate()` + `RetryBudget` + `Tracker` |
-| **Test** | Vitest — **1,070+ tests passing** |
+| **Test** | Vitest — **1,141 tests passing** |
 | **Node.js** | ≥ 18 (TUI: ≥ 20) |
 
 ### 모듈 구조
@@ -358,18 +366,22 @@ src/
 │   ├── debugger/             # Debugger 에이전트
 │   └── synthesizer/          # Synthesizer 에이전트
 │
-└── tui/                      # 터미널 UI 컴포넌트 (1,453 lines)
-    ├── ChatApp.tsx            # 메인 채팅 앱 (Provider 분기)
+└── tui/                      # 터미널 UI 컴포넌트 (2,006 lines)
+    ├── ChatApp.tsx            # 메인 채팅 앱 (Provider 분기, 메시지 큐, tool loop)
+    ├── FullscreenLayout.tsx   # 3-패널 풀스크린 레이아웃 (computeLayout + 사이드바)
+    ├── MessageBubble.tsx      # 카드형 메시지 버블 (round border, ROLE_CONFIG)
+    ├── ToolCallBlock.tsx      # 인라인 tool 실행 표시 (running/complete/blocked)
+    ├── theme.ts               # 중앙 색상 토큰 (18 semantic tokens, 이중 팔레트, 자동 감지)
     ├── Dashboard.tsx          # 실시간 대시보드 (토큰/비용/예산)
-    ├── MessageList.tsx        # 메시지 렌더링
-    ├── ChatInput.tsx          # 입력 컴포넌트
+    ├── MessageList.tsx        # ScrollView 기반 스크롤 메시지 렌더링
+    ├── ChatInput.tsx          # 입력 컴포넌트 (스트리밍 중 항상 활성)
     ├── Header.tsx             # 상단 헤더
     ├── ToolStatus.tsx         # Tool 실행 상태
     ├── GovernanceStatus.tsx   # 거버넌스 상태
     ├── PipelinePanel.tsx      # 파이프라인 진행 상태
     ├── AutoModeStatus.tsx     # 자동 모드 상태
     ├── TaskProgress.tsx       # 태스크 진행률
-    ├── HelpOverlay.tsx        # 도움말 오버레이
+    ├── HelpOverlay.tsx        # 도움말 오버레이 (8개 슬래시 명령어)
     ├── App.tsx                # TUI 진입점
     └── shortcuts.ts           # 키보드 단축키 정의
 ```
@@ -479,14 +491,14 @@ vela req render                        # REQUIREMENTS.md 생성
 
 | Metric | Value |
 |--------|-------|
-| Source (TypeScript + TSX) | **~11,005 lines** |
-| Tests (TypeScript + TSX) | **~16,891 lines** |
+| Source (TypeScript + TSX) | **~10,689 lines** |
+| Tests (TypeScript + TSX) | **~17,884 lines** |
 | Hook enforcement (CJS) | **~884 lines** |
 | Governance ESM module | **~1,156 lines** |
-| TUI components | **12 files, ~1,453 lines** |
+| TUI components | **17 files, ~2,006 lines** |
 | Agent prompts | **25 files** |
-| Test cases | **1,073 passing** |
-| Total files (npm pack) | **135** |
+| Test cases | **1,141 passing** |
+| Total files (npm pack) | **143** |
 | Node.js requirement | ≥ 18 (TUI: ≥ 20) |
 
 ---

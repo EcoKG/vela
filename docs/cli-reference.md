@@ -6,7 +6,7 @@
 
 ## vela chat — 독립 에이전트
 
-Claude와 직접 대화하는 인터랙티브 TUI 에이전트.
+Claude와 직접 대화하는 풀스크린 인터랙티브 TUI 에이전트. alternate buffer에서 실행되며 3-패널 레이아웃 + 사이드바 대시보드 + 카드형 메시지 버블 + 비동기 메시지 큐를 제공합니다.
 
 ```bash
 vela chat [options]
@@ -46,9 +46,11 @@ vela chat sessions
 
 | Shortcut | Description |
 |----------|-------------|
-| `Ctrl+D` | 대시보드 토글 (토큰/비용/모델/세션 표시) |
+| `Ctrl+D` | 사이드바 대시보드 토글 (토큰/비용/모델/세션 표시) |
 | `Ctrl+L` | 화면 클리어 |
 | `Escape` | 오버레이 닫기 |
+| `↑` / `↓` | 메시지 1줄 스크롤 |
+| `PageUp` / `PageDown` | 메시지 뷰포트 단위 스크롤 |
 
 ### Examples
 

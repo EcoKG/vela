@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/scripts/install.sh 
 특정 버전 설치:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/scripts/install.sh | sh -s -- --version 0.2.1
+curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/scripts/install.sh | sh -s -- --version 0.3.0
 ```
 
 설치 스크립트는 다음을 자동으로 수행합니다:
@@ -36,7 +36,7 @@ curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/scripts/install.sh 
 ### npm (GitHub Releases에서 직접)
 
 ```bash
-npm install -g https://github.com/EcoKG/vela/releases/download/v0.2.1/vela-cli-0.2.1.tgz
+npm install -g https://github.com/EcoKG/vela/releases/download/v0.3.0/vela-cli-0.3.0.tgz
 ```
 
 ### 소스에서 빌드
@@ -173,7 +173,7 @@ vela start "OAuth2 인증 추가" --scale large
 curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/scripts/install.sh | sh
 
 # 또는 npm으로 직접
-npm install -g https://github.com/EcoKG/vela/releases/download/v0.2.1/vela-cli-0.2.1.tgz
+npm install -g https://github.com/EcoKG/vela/releases/download/v0.3.0/vela-cli-0.3.0.tgz
 ```
 
 ---

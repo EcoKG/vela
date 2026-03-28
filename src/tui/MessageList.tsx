@@ -1,9 +1,18 @@
 import React from 'react';
-import { Box, Static, Text } from 'ink';
+import { Box, Text } from 'ink';
+import { ScrollView } from 'ink-scroll-view';
+import type { ScrollViewRef } from 'ink-scroll-view';
+import { MessageBubble } from './MessageBubble.js';
+import type { ToolCallInfo } from './ToolCallBlock.js';
+import { theme } from './theme.js';
+
+export type { ScrollViewRef };
+export type { ToolCallInfo };
 
 export interface Message {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
+  toolCalls?: ToolCallInfo[];
 }
 
 export interface MessageListProps {
@@ -11,25 +20,22 @@ export interface MessageListProps {
   streamingText?: string;
 }
 
-export function MessageList({ messages, streamingText }: MessageListProps) {
-  return (
-    <Box flexDirection="column">
-      <Static items={messages}>
-        {(msg, index) => (
-          <Box key={index}>
-            <Text color={msg.role === 'user' ? 'green' : 'cyan'} bold>
-              {msg.role === 'user' ? 'You: ' : 'Claude: '}
-            </Text>
-            <Text>{msg.content}</Text>
+export const MessageList = React.forwardRef<ScrollViewRef, MessageListProps>(
+  function MessageList({ messages, streamingText }, ref) {
+    return (
+      <Box flexDirection="column" flexGrow={1}>
+        <ScrollView ref={ref} flexGrow={1}>
+          {messages.map((msg, index) => (
+            <MessageBubble key={index} message={msg} />
+          ))}
+        </ScrollView>
+        {streamingText ? (
+          <Box>
+            <Text color={theme.velaLabel} bold>⛵ Vela: </Text>
+            <Text>{streamingText}</Text>
           </Box>
-        )}
-      </Static>
-      {streamingText ? (
-        <Box>
-          <Text color="cyan" bold>Claude: </Text>
-          <Text>{streamingText}</Text>
-        </Box>
-      ) : null}
-    </Box>
-  );
-}
+        ) : null}
+      </Box>
+    );
+  },
+);

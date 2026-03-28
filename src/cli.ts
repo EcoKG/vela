@@ -1093,9 +1093,9 @@ program
             process.exit(1);
           }
           const { ChatApp } = await import('./tui/ChatApp.js');
-          const { render } = await import('ink');
+          const { withFullScreen } = await import('fullscreen-ink');
           const React = await import('react');
-          render(React.createElement(ChatApp, {
+          const fullscreen = withFullScreen(React.createElement(ChatApp, {
             provider,
             model: resolvedModel,
             maxTokens: parseInt(opts.maxTokens, 10),
@@ -1106,6 +1106,8 @@ program
             budget: budgetLimit,
             autoRoute: opts.autoRoute,
           }));
+          await fullscreen.start();
+          await fullscreen.waitUntilExit();
         } finally {
           closeDb(sessionDb);
         }
@@ -1146,9 +1148,9 @@ program
           process.exit(1);
         }
         const { ChatApp } = await import('./tui/ChatApp.js');
-        const { render } = await import('ink');
+        const { withFullScreen } = await import('fullscreen-ink');
         const React = await import('react');
-        render(React.createElement(ChatApp, {
+        const fullscreen = withFullScreen(React.createElement(ChatApp, {
           provider,
           model: resolvedModel,
           maxTokens: parseInt(opts.maxTokens, 10),
@@ -1156,6 +1158,8 @@ program
           budget: budgetLimit,
           autoRoute: opts.autoRoute,
         }));
+        await fullscreen.start();
+        await fullscreen.waitUntilExit();
       }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
