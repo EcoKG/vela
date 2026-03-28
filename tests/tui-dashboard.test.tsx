@@ -252,4 +252,30 @@ describe('Dashboard', () => {
     const { lastFrame } = render(<Dashboard {...props} />);
     expect(lastFrame()).not.toContain('Auto-routed:');
   });
+
+  // ── Provider type display tests ───────────────────────────────
+
+  it('shows Provider: Claude Code CLI when providerType is cli', () => {
+    const props = makeProps({ providerType: 'cli' });
+    const { lastFrame } = render(<Dashboard {...props} />);
+    const frame = lastFrame();
+
+    expect(frame).toContain('Provider:');
+    expect(frame).toContain('Claude Code CLI');
+  });
+
+  it('shows Provider: API when providerType is api', () => {
+    const props = makeProps({ providerType: 'api' });
+    const { lastFrame } = render(<Dashboard {...props} />);
+    const frame = lastFrame();
+
+    expect(frame).toContain('Provider:');
+    expect(frame).toContain('API');
+  });
+
+  it('does NOT show Provider section when providerType is undefined', () => {
+    const props = makeProps();
+    const { lastFrame } = render(<Dashboard {...props} />);
+    expect(lastFrame()).not.toContain('Provider:');
+  });
 });

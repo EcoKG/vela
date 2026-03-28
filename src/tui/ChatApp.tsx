@@ -26,7 +26,9 @@ import {
 } from '../context-manager.js';
 import { DEFAULT_MODEL } from '../models.js';
 import { selectModel } from '../model-router.js';
+import { sendMessageViaCli } from '../claude-code-adapter.js';
 import { TokenTracker } from '../token-tracker.js';
+import type { Provider } from '../provider.js';
 import type { TokenState, CostEstimate } from '../token-tracker.js';
 import type { ChatMessage, SendMessageOptions } from '../claude-client.js';
 import { executeTool, TOOL_DEFINITIONS } from '../tool-engine.js';
@@ -53,7 +55,7 @@ import type Database from 'better-sqlite3';
 // ── Props ─────────────────────────────────────────────────────
 
 export interface ChatAppProps {
-  apiKey: string;
+  provider: Provider;
   model?: string;
   maxTokens?: number;
   system?: string;
@@ -78,7 +80,7 @@ const MAX_TOOL_ITERATIONS = 10;
 // ── Component ─────────────────────────────────────────────────
 
 export function ChatApp({
-  apiKey,
+  provider,
   model,
   maxTokens,
   system,
@@ -329,6 +331,16 @@ export function ChatApp({
           ]);
           return;
         case 'fresh': {
+          // Context reset is only supported for API provider
+          if (provider.type !== 'api') {
+            setMessages((prev) => [
+              ...prev,
+              userMsg,
+              { role: 'assistant', content: '[vela] 컨텍스트 리셋은 API 모드에서만 지원됩니다' },
+            ]);
+            return;
+          }
+
           // Guard: need at least 4 messages for meaningful summarization
           if (conversationRef.current.length < 4) {
             setMessages((prev) => [
@@ -343,7 +355,7 @@ export function ChatApp({
           setStreamingState(true);
 
           try {
-            const client = createClaudeClient(apiKey);
+            const client = createClaudeClient((provider as { type: 'api'; apiKey: string }).apiKey);
             const summary = await summarizeConversation(
               client,
               conversationRef.current,
@@ -441,7 +453,64 @@ export function ChatApp({
     }
 
     try {
-      const client = createClaudeClient(apiKey);
+      if (provider.type === 'cli') {
+        // ── CLI provider path: delegate to Claude Code CLI ──────
+        // No tool loop, no auto-routing, no auto context reset
+        const cliResponse = await sendMessageViaCli(conversationRef.current, {
+          model: currentModelRef.current,
+          system,
+          onText: (text) => {
+            if (mountedRef.current) {
+              setStreamingText((prev) => prev + text);
+            }
+          },
+        });
+        trackUsage(cliResponse);
+
+        const finalText = cliResponse.content
+          .filter((block): block is TextBlock => block.type === 'text')
+          .map((block) => block.text)
+          .join('');
+
+        conversationRef.current = [
+          ...conversationRef.current,
+          {
+            role: 'assistant',
+            content: cliResponse.content as ContentBlockParam[],
+          },
+        ];
+
+        if (mountedRef.current) {
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: finalText },
+          ]);
+          setStreamingText('');
+          setStreamingState(false);
+        }
+
+        // Save messages to session DB (fail-open per K013)
+        if (sessionDbRef.current && sessionIdRef.current) {
+          try {
+            addSessionMessage(sessionDbRef.current, {
+              session_id: sessionIdRef.current,
+              role: 'user',
+              display: input,
+              content: input,
+            });
+            addSessionMessage(sessionDbRef.current, {
+              session_id: sessionIdRef.current,
+              role: 'assistant',
+              display: finalText,
+              content: cliResponse.content,
+            });
+          } catch (e) {
+            process.stderr.write(`[vela] session save failed: ${e instanceof Error ? e.message : String(e)}\n`);
+          }
+        }
+      } else {
+      // ── API provider path: full Anthropic API + tool loop ──────
+      const client = createClaudeClient(provider.apiKey);
 
       // Auto-routing: select model based on message complexity and budget
       let effectiveModel = currentModelRef.current;
@@ -588,7 +657,7 @@ export function ChatApp({
       }
 
       // Auto-trigger context reset when token threshold is exceeded
-      if (shouldResetContext(tokenTrackerRef.current.getState().totalTokens)) {
+      if (provider.type === 'api' && shouldResetContext(tokenTrackerRef.current.getState().totalTokens)) {
         try {
           const summary = await summarizeConversation(
             client,
@@ -656,6 +725,7 @@ export function ChatApp({
           process.stderr.write(`[vela] session save failed: ${e instanceof Error ? e.message : String(e)}\n`);
         }
       }
+      } // end else (API provider path)
     } catch (err: unknown) {
       if (mountedRef.current) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -692,6 +762,7 @@ export function ChatApp({
           budgetWarning={budgetStatus.warning}
           budgetBlocked={budgetStatus.blocked}
           routedModel={routedModel}
+          providerType={provider.type}
         />
       )}
       <HelpOverlay visible={helpVisible} />

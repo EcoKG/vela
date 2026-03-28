@@ -36,6 +36,13 @@ vi.mock('../src/tool-engine.js', () => ({
   TOOL_DEFINITIONS: [],
 }));
 
+// Claude Code adapter mock
+const mockSendMessageViaCli = vi.fn();
+
+vi.mock('../src/claude-code-adapter.js', () => ({
+  sendMessageViaCli: (...args: unknown[]) => mockSendMessageViaCli(...args),
+}));
+
 vi.mock('../src/governance/index.js', () => ({
   buildGateContext: () => ({ mode: 'read', velaDir: '/tmp/.vela', artifactDir: '/tmp/artifacts' }),
   RetryBudget: class MockRetryBudget {
@@ -94,6 +101,7 @@ describe('ChatApp', () => {
     mockIsToolUseResponse.mockReset();
     mockExecuteTool.mockReset();
     mockCreateClaudeClient.mockReturnValue({});
+    mockSendMessageViaCli.mockReset();
 
     // Session mocks
     mockOpenSessionDb.mockReset();
@@ -121,7 +129,7 @@ describe('ChatApp', () => {
   });
 
   it('renders Header and input prompt on mount', () => {
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
     const frame = lastFrame()!;
     expect(frame).toContain('Vela');
     expect(frame).toContain('>');
@@ -135,7 +143,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('Hello');
@@ -156,7 +164,7 @@ describe('ChatApp', () => {
   it('shows error message when sendMessage throws', async () => {
     mockSendMessage.mockRejectedValue(new Error('API key invalid'));
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-bad" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-bad' }} />);
 
     await act(async () => {
       capturedOnSubmit!('Test');
@@ -206,7 +214,7 @@ describe('ChatApp', () => {
 
     mockExecuteTool.mockReturnValue(toolPromise);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     // Don't await — let the async flow run until tool pause
     act(() => {
@@ -238,7 +246,7 @@ describe('ChatApp', () => {
   });
 
   it('ignores empty input submission', async () => {
-    render(<ChatApp apiKey="sk-test" />);
+    render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('');
@@ -290,7 +298,7 @@ describe('ChatApp', () => {
       is_error: true,
     });
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('Write file');
@@ -334,7 +342,7 @@ describe('ChatApp', () => {
 
     mockExecuteTool.mockReturnValue(toolPromise);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     act(() => {
       capturedOnSubmit!('Read file');
@@ -359,7 +367,7 @@ describe('ChatApp', () => {
   });
 
   it('renders GovernanceStatus with mode from gate context', async () => {
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     // useEffect sets pipelineMode asynchronously — wait for it
     await vi.waitFor(() => {
@@ -377,7 +385,7 @@ describe('ChatApp', () => {
       { role: 'assistant' as const, content: 'Previous answer' },
     ];
     const { lastFrame } = render(
-      <ChatApp apiKey="sk-test" initialMessages={initial} />,
+      <ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} initialMessages={initial} />,
     );
     const frame = lastFrame()!;
     expect(frame).toContain('Previous question');
@@ -392,7 +400,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    render(<ChatApp apiKey="sk-test" />);
+    render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('First message');
@@ -432,7 +440,7 @@ describe('ChatApp', () => {
     mockIsToolUseResponse.mockReturnValue(false);
 
     const onCreated = vi.fn();
-    render(<ChatApp apiKey="sk-test" onSessionCreated={onCreated} />);
+    render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} onSessionCreated={onCreated} />);
 
     await act(async () => {
       capturedOnSubmit!('Hello');
@@ -455,7 +463,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('Test');
@@ -480,7 +488,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    render(<ChatApp apiKey="sk-test" />);
+    render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('First');
@@ -512,7 +520,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    render(<ChatApp apiKey="sk-test" sessionId="existing-session-id" />);
+    render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} sessionId="existing-session-id" />);
 
     await act(async () => {
       capturedOnSubmit!('Continue chat');
@@ -541,7 +549,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('Question');
@@ -567,7 +575,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     // First turn
     await act(async () => {
@@ -602,7 +610,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame, stdin } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame, stdin } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     // Send a message to populate dashboard with tokens
     await act(async () => {
@@ -638,7 +646,7 @@ describe('ChatApp', () => {
   // ── Slash command tests ────────────────────────────────────────
 
   it('/help shows help overlay', async () => {
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('/help');
@@ -663,7 +671,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('Hello');
@@ -704,7 +712,7 @@ describe('ChatApp', () => {
   });
 
   it('unknown slash command shows error message', async () => {
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('/xyz');
@@ -721,7 +729,7 @@ describe('ChatApp', () => {
   });
 
   it('/model shows current model', async () => {
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" model="claude-sonnet-4-20250514" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} model="claude-sonnet-4-20250514" />);
 
     await act(async () => {
       capturedOnSubmit!('/model');
@@ -740,7 +748,7 @@ describe('ChatApp', () => {
       { id: 'aaaa-bbbb-cccc-dddd', title: 'My chat', model: 'claude-sonnet-4-20250514', system: null, created_at: '2026-01-01', updated_at: '2026-01-02' },
     ]);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('/sessions');
@@ -756,7 +764,7 @@ describe('ChatApp', () => {
   });
 
   it('Escape dismisses help overlay', async () => {
-    const { lastFrame, stdin } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame, stdin } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     // Show help
     await act(async () => {
@@ -791,7 +799,7 @@ describe('ChatApp', () => {
     ];
 
     const { lastFrame } = render(
-      <ChatApp apiKey="sk-test" initialConversation={initialConversation} />,
+      <ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} initialConversation={initialConversation} />,
     );
 
     await act(async () => {
@@ -814,7 +822,7 @@ describe('ChatApp', () => {
 
   it('/fresh on short conversation shows warning', async () => {
     // No initialConversation → empty conversation (< 4 messages)
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('/fresh');
@@ -841,7 +849,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('Test message');
@@ -865,7 +873,7 @@ describe('ChatApp', () => {
   // ── Auto-routing tests ─────────────────────────────────────────
 
   it('/auto toggles auto-routing on and shows Korean status message', async () => {
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('/auto');
@@ -880,7 +888,7 @@ describe('ChatApp', () => {
   });
 
   it('/auto toggles off when already on', async () => {
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" autoRoute={true} />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} autoRoute={true} />);
 
     await act(async () => {
       capturedOnSubmit!('/auto');
@@ -905,7 +913,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" autoRoute={true} />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} autoRoute={true} />);
 
     await act(async () => {
       capturedOnSubmit!('hi');
@@ -942,7 +950,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" autoRoute={true} />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} autoRoute={true} />);
 
     await act(async () => {
       capturedOnSubmit!('moderate question');
@@ -965,7 +973,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    render(<ChatApp apiKey="sk-test" />);
+    render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} />);
 
     await act(async () => {
       capturedOnSubmit!('hello');
@@ -990,7 +998,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" autoRoute={true} />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} autoRoute={true} />);
 
     // User explicitly sets model
     await act(async () => {
@@ -1026,7 +1034,7 @@ describe('ChatApp', () => {
     });
     mockIsToolUseResponse.mockReturnValue(false);
 
-    const { lastFrame } = render(<ChatApp apiKey="sk-test" autoRoute={true} />);
+    const { lastFrame } = render(<ChatApp provider={{ type: 'api', apiKey: 'sk-test' }} autoRoute={true} />);
 
     await act(async () => {
       capturedOnSubmit!('hi');
@@ -1039,5 +1047,53 @@ describe('ChatApp', () => {
 
     // Should work fine without budget
     expect(mockSelectModel).toHaveBeenCalled();
+  });
+
+  // ── CLI provider tests ─────────────────────────────────────────
+
+  it('CLI provider calls sendMessageViaCli instead of createClaudeClient', async () => {
+    mockSendMessageViaCli.mockResolvedValue({
+      id: 'cli-123',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-sonnet-4-20250514',
+      content: [{ type: 'text', text: 'CLI reply' }],
+      stop_reason: 'end_turn',
+      stop_sequence: null,
+      usage: { input_tokens: 50, output_tokens: 25 },
+    });
+
+    const { lastFrame } = render(<ChatApp provider={{ type: 'cli' }} />);
+
+    await act(async () => {
+      capturedOnSubmit!('Hello via CLI');
+    });
+
+    await vi.waitFor(() => {
+      const frame = lastFrame()!;
+      expect(frame).toContain('CLI reply');
+    });
+
+    // sendMessageViaCli should have been called
+    expect(mockSendMessageViaCli).toHaveBeenCalled();
+    // createClaudeClient should NOT have been called
+    expect(mockCreateClaudeClient).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('/fresh on CLI provider shows unsupported message', async () => {
+    const { lastFrame } = render(<ChatApp provider={{ type: 'cli' }} />);
+
+    await act(async () => {
+      capturedOnSubmit!('/fresh');
+    });
+
+    await vi.waitFor(() => {
+      const frame = lastFrame()!;
+      expect(frame).toContain('컨텍스트 리셋은 API 모드에서만 지원됩니다');
+    });
+
+    expect(mockSendMessageViaCli).not.toHaveBeenCalled();
+    expect(mockSummarizeConversation).not.toHaveBeenCalled();
   });
 });

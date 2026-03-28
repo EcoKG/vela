@@ -17,6 +17,7 @@ export interface DashboardProps {
   budgetWarning?: boolean;
   budgetBlocked?: boolean;
   routedModel?: string | null;
+  providerType?: 'api' | 'cli';
 }
 
 export function Dashboard({
@@ -35,6 +36,7 @@ export function Dashboard({
   budgetWarning = false,
   budgetBlocked = false,
   routedModel,
+  providerType,
 }: DashboardProps) {
   // Don't render until first response produces tokens
   if (inputTokens === 0 && outputTokens === 0 && totalTokens === 0) {
@@ -83,6 +85,15 @@ export function Dashboard({
         <Text color="white">Model: </Text>
         <Text color="cyan">{model}</Text>
       </Box>
+
+      {providerType != null && (
+        <Box>
+          <Text color="white">Provider: </Text>
+          <Text color={providerType === 'cli' ? 'yellow' : 'cyan'}>
+            {providerType === 'cli' ? 'Claude Code CLI' : 'API'}
+          </Text>
+        </Box>
+      )}
 
       {routedModel != null && routedModel !== model && (
         <Box>

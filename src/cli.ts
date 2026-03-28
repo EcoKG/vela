@@ -49,11 +49,14 @@ import {
 import type { RequirementStatus, RequirementClass } from './requirements.js';
 import { resolveApiKey, addProfile, listProfiles, useProfile, removeProfile, getActiveProfile, maskApiKey } from './auth.js';
 import type { AuthProfile, AuthFileV2 } from './auth.js';
+import { resolveProvider } from './provider.js';
+import type { Provider } from './provider.js';
 import { resolveModelAlias, DEFAULT_MODEL } from './models.js';
 import { createInterface } from 'node:readline';
 import { createClaudeClient } from './claude-client.js';
 import type { ChatMessage } from './claude-client.js';
 import { runToolLoop } from './tool-engine.js';
+import { sendMessageViaCli } from './claude-code-adapter.js';
 import {
   openSessionDb,
   getSession,
@@ -1030,11 +1033,12 @@ program
         process.exit(0);
       }
 
-      const apiKey = resolveApiKey();
-      if (!apiKey) {
-        process.stderr.write(
-          'Error: No API key found. Set ANTHROPIC_API_KEY environment variable or save one with: vela auth login\n',
-        );
+      let provider: Provider;
+      try {
+        provider = resolveProvider();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`Error: ${msg}\n`);
         process.exit(1);
       }
 
@@ -1092,7 +1096,7 @@ program
           const { render } = await import('ink');
           const React = await import('react');
           render(React.createElement(ChatApp, {
-            apiKey,
+            provider,
             model: resolvedModel,
             maxTokens: parseInt(opts.maxTokens, 10),
             system: opts.system ?? session.system ?? undefined,
@@ -1110,13 +1114,25 @@ program
 
       if (message) {
         // One-shot mode: send message and print response
-        const client = createClaudeClient(apiKey);
-        await runToolLoop(client, [{ role: 'user', content: message }], {
-          model: resolvedModel,
-          maxTokens: parseInt(opts.maxTokens, 10),
-          system: opts.system,
-          onText: (text) => process.stdout.write(text),
-        });
+        if (provider.type === 'api') {
+          const client = createClaudeClient(provider.apiKey);
+          await runToolLoop(client, [{ role: 'user', content: message }], {
+            model: resolvedModel,
+            maxTokens: parseInt(opts.maxTokens, 10),
+            system: opts.system,
+            onText: (text) => process.stdout.write(text),
+          });
+        } else {
+          // CLI provider — send via Claude Code CLI, no tool loop
+          await sendMessageViaCli(
+            [{ role: 'user', content: message }],
+            {
+              model: resolvedModel,
+              system: opts.system,
+              onText: (text) => process.stdout.write(text),
+            },
+          );
+        }
         process.stdout.write('\n');
       } else {
         // Interactive TUI mode
@@ -1133,7 +1149,7 @@ program
         const { render } = await import('ink');
         const React = await import('react');
         render(React.createElement(ChatApp, {
-          apiKey,
+          provider,
           model: resolvedModel,
           maxTokens: parseInt(opts.maxTokens, 10),
           system: opts.system,

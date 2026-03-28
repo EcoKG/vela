@@ -29,6 +29,9 @@
     "typescript": "^5.0.0",
     "vitest": "^3.0.0"
   },
+  "optionalDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "*"
+  },
   "engines": {
     "node": ">=18"
   },
