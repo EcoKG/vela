@@ -7,7 +7,7 @@
   <br />
   <em>AI Coding Agent with Built-in Governance</em>
   <br />
-  <code>v0.2.0</code>
+  <code>v0.2.1</code>
   <br />
   <br />
   <a href="#quick-start">Quick Start</a> · <a href="#why-vela">Why Vela</a> · <a href="#vela-chat">Chat Agent</a> · <a href="#governance-engine">Governance</a> · <a href="#architecture">Architecture</a> · <a href="#documentation">Docs</a>
@@ -238,7 +238,7 @@ Tracker
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                         ⛵  V E L A  v0.2.0                     │
+│                         ⛵  V E L A  v0.2.1                     │
 │                                                                  │
 │  ┌─── Independent Agent ──────────────────────────────────────┐  │
 │  │  vela chat                                                 │  │
@@ -485,7 +485,7 @@ vela req render                        # REQUIREMENTS.md 생성
 | Governance ESM module | **~1,156 lines** |
 | TUI components | **12 files, ~1,453 lines** |
 | Agent prompts | **25 files** |
-| Test cases | **1,070+ passing** |
+| Test cases | **1,073 passing** |
 | Total files (npm pack) | **135** |
 | Node.js requirement | ≥ 18 (TUI: ≥ 20) |
 
