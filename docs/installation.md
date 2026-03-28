@@ -1,144 +1,174 @@
-# ⛵ Installation Guide
+# 📦 Installation Guide
 
-Vela를 설치하는 3가지 방법을 안내합니다.
-
-## Prerequisites
-
-- **Node.js 18** 이상 (TUI는 Node.js ≥20 필요)
-- **Claude Code** (Claude Code hooks를 통해 동작)
-- **Git** (git integration 사용 시)
+Vela CLI 설치 방법과 프로젝트 초기 설정을 안내합니다.
 
 ---
 
-## Option 1: npm Global Install (Recommended)
+## 요구사항
+
+- **Node.js** ≥ 18 (TUI 기능: ≥ 20)
+- **npm** (Node.js에 포함)
+- **Git** (선택 — git 통합 기능 사용 시)
+
+---
+
+## 설치
+
+### npm (권장)
 
 ```bash
 npm install -g vela-cli
 ```
 
-설치 확인:
-
-```bash
-vela --version
-# 0.1.0
-```
-
-## Option 2: npx (설치 없이 실행)
-
-```bash
-npx vela-cli init
-npx vela-cli start "Add login page" --scale medium
-```
-
-## Option 3: curl (GitHub Releases)
+### curl one-liner
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/scripts/install.sh | sh
 ```
 
-`--dry-run`으로 미리 확인:
+### 소스에서 빌드
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EcoKG/vela/main/scripts/install.sh | sh -s -- --dry-run
-```
-
-환경 변수로 버전 지정:
-
-```bash
-VELA_VERSION=0.1.0 curl -fsSL ... | sh
+git clone https://github.com/EcoKG/vela.git
+cd vela
+npm install
+npm run build
+npm link
 ```
 
 ---
 
-## Project Setup
+## 인증 설정
 
-설치 후 프로젝트에서 초기화합니다:
+`vela chat`을 사용하려면 Anthropic API 키가 필요합니다.
+
+### 방법 1: 환경변수 (간단)
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### 방법 2: 프로필 저장 (영구)
+
+```bash
+vela auth add default
+# API 키 입력 프롬프트 표시
+# ~/.vela/auth.json에 저장됨
+```
+
+### 인증 확인
+
+```bash
+vela auth status
+```
+
+---
+
+## 프로젝트 초기화 (거버넌스 엔진)
+
+Claude Code hooks 거버넌스를 사용하려면:
 
 ```bash
 cd your-project
 vela init
 ```
 
-`vela init`이 수행하는 작업:
+이 명령이 수행하는 작업:
 
-| 항목 | 설명 |
-|------|------|
-| `.vela/hooks/` | 2개 enforcement hook 복사 (vela-gate.cjs, tracker.cjs) + shared/ |
-| `.vela/agents/` | 25개 agent prompt 파일 복사 |
-| `.vela/config.json` | 프로젝트 설정 파일 생성 |
-| `.vela/state/` | SQLite DB, 파이프라인 상태 (gitignored) |
-| `.claude/settings.local.json` | Claude Code hook 등록 (자동 생성) |
+1. `.vela/` 디렉토리 생성
+2. Hook 파일 복사 (`vela-gate.cjs`, `tracker.cjs`)
+3. 에이전트 프롬프트 복사 (25개 MD 파일)
+4. `config.json` 생성
+5. `.claude/settings.local.json`에 hook 자동 등록
 
-> **멱등성 보장** — `vela init`을 여러 번 실행해도 안전합니다. 이미 초기화된 프로젝트에서도 hook과 agent 파일을 업데이트합니다.
+> 이후 Claude Code에서 작업하면 Vela 거버넌스가 자동 적용됩니다.
 
 ---
 
-## Verify Installation
+## 빠른 시작
+
+### 독립 에이전트 (vela chat)
 
 ```bash
-# 1. 버전 확인
-vela --version
+# 인증 후 바로 사용
+vela chat
 
-# 2. 프로젝트 초기화 확인
-ls .vela/hooks/        # 2개 hook 파일 + shared/
-ls .vela/agents/       # 25개 agent prompt
+# 모델/예산/라우팅 옵션
+vela chat --model opus --budget 10 --auto-route
+```
 
-# 3. Claude Code hook 등록 확인
-cat .claude/settings.local.json | grep "vela-gate"
+### 거버넌스 파이프라인
+
+```bash
+# 프로젝트에서
+vela init
+vela start "기능 추가" --scale large
 ```
 
 ---
 
-## Update
+## 트러블슈팅
 
-```bash
-# npm
-npm update -g vela-cli
+### `vela` 명령을 찾을 수 없음
 
-# 프로젝트 내 hook/agent 업데이트
-vela init   # 새 파일만 추가, 기존 파일 유지
-```
-
----
-
-## Uninstall
-
-```bash
-# npm 글로벌 제거
-npm uninstall -g vela-cli
-
-# 프로젝트에서 Vela 제거
-rm -rf .vela/
-# .claude/settings.local.json에서 hook 등록 수동 제거
-```
-
----
-
-## Troubleshooting
-
-### `vela: command not found`
-
-npm 글로벌 bin 디렉토리가 PATH에 있는지 확인:
+npm global bin이 PATH에 포함되어 있는지 확인:
 
 ```bash
 npm config get prefix
-# 출력된 경로/bin 이 PATH에 포함되어야 합니다
-export PATH="$(npm config get prefix)/bin:$PATH"
+# 출력 경로/bin이 PATH에 있어야 함
+```
+
+### API 키 오류
+
+```bash
+vela auth status
+# 현재 인증 상태 확인
+
+# 환경변수로 직접 설정
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### TUI가 깨져 보임
+
+Node.js ≥ 20이 필요합니다:
+
+```bash
+node --version
+# v20.0.0 이상 필요
 ```
 
 ### Hook이 동작하지 않음
 
 ```bash
-# .claude/settings.local.json에 hook이 등록되었는지 확인
-cat .claude/settings.local.json | grep -A2 "PreToolUse"
+# hook 파일 존재 확인
+ls .vela/hooks/
 
-# hook 파일이 존재하는지 확인
-ls .vela/hooks/vela-gate.cjs .vela/hooks/tracker.cjs
+# Claude Code 설정 확인
+cat .claude/settings.local.json
+
+# 재초기화
+vela init
 ```
 
-### Node.js 버전 오류
+---
+
+## 업데이트
 
 ```bash
-node --version  # v18.0.0 이상 필요 (TUI는 v20.0.0 이상)
-nvm install 18 && nvm use 18  # nvm 사용 시
+npm update -g vela-cli
+```
+
+---
+
+## 제거
+
+```bash
+npm uninstall -g vela-cli
+```
+
+프로젝트에서 Vela 제거:
+
+```bash
+rm -rf .vela/
+rm .claude/settings.local.json
 ```

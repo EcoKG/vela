@@ -1,448 +1,222 @@
-# ⛵ CLI Reference
+# 💻 CLI Reference
 
-모든 Vela CLI 명령어의 완전한 레퍼런스입니다.
-
----
-
-## Global
-
-```
-vela --version              버전 출력
-vela --help                 도움말
-vela help <command>         명령어별 도움말
-```
+모든 Vela CLI 명령어의 상세 레퍼런스입니다.
 
 ---
 
-## Pipeline
+## vela chat — 독립 에이전트
 
-### `vela init`
+Claude와 직접 대화하는 인터랙티브 TUI 에이전트.
 
-프로젝트에 Vela를 초기화합니다.
+```bash
+vela chat [options]
+vela chat sessions
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--model <name>` | Claude 모델 선택 (`sonnet`, `opus`, `haiku` 또는 전체 모델 ID) |
+| `--budget <amount>` | 세션 예산 한도 (USD). 80%에서 경고, 100%에서 API 호출 차단 |
+| `--auto-route` | 동적 모델 라우팅 활성화 — 메시지 복잡도에 따라 haiku/sonnet/opus 자동 선택 |
+| `--resume [sessionId]` | 이전 세션 이어서 대화. sessionId 생략 시 마지막 세션 |
+| `-s, --system <prompt>` | 시스템 프롬프트 설정 |
+
+### Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `vela chat sessions` | 저장된 세션 목록 조회 (ID, 생성일, 메시지 수) |
+
+### 슬래시 명령어 (TUI 내부)
+
+| Command | Description |
+|---------|-------------|
+| `/help` | 도움말 표시 |
+| `/quit` | 종료 |
+| `/clear` | 대화 초기화 |
+| `/model <name>` | 런타임 모델 전환 (sonnet, opus, haiku) |
+| `/fresh` | 컨텍스트 리셋 — Haiku로 대화 요약 후 fresh 시작 |
+| `/budget [amount]` | 예산 상태 확인 또는 한도 설정 |
+| `/auto` | 동적 모델 라우팅 on/off 토글 |
+| `/sessions` | 저장된 세션 목록 |
+
+### 키보드 단축키
+
+| Shortcut | Description |
+|----------|-------------|
+| `Ctrl+D` | 대시보드 토글 (토큰/비용/모델/세션 표시) |
+| `Ctrl+L` | 화면 클리어 |
+| `Escape` | 오버레이 닫기 |
+
+### Examples
+
+```bash
+# 기본 채팅
+vela chat
+
+# Opus 모델로 $10 예산 설정
+vela chat --model opus --budget 10
+
+# 자동 모델 라우팅 + 이전 세션 이어서
+vela chat --auto-route --resume
+
+# 세션 목록 확인
+vela chat sessions
+```
+
+---
+
+## vela auth — 인증 관리
+
+API 키 프로필을 관리합니다. 프로필은 `~/.vela/auth.json`에 저장됩니다.
+
+```bash
+vela auth <subcommand>
+```
+
+### Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `vela auth add <name>` | 새 API 키 프로필 추가 (인터랙티브 입력) |
+| `vela auth list` | 등록된 프로필 목록 (활성 프로필 표시) |
+| `vela auth use <name>` | 활성 프로필 전환 |
+| `vela auth remove <name>` | 프로필 삭제 |
+| `vela auth login` | 인터랙티브 로그인 |
+| `vela auth status` | 현재 인증 상태 (env/profile/none) |
+
+### 인증 우선순위
+
+1. `ANTHROPIC_API_KEY` 환경변수
+2. `~/.vela/auth.json` 활성 프로필
+3. 미설정 시 안내 메시지
+
+---
+
+## vela init — 프로젝트 초기화
 
 ```bash
 vela init
 ```
 
-- `.vela/` 디렉토리 생성 및 파일 복사
-- `.claude/settings.local.json`에 hook 자동 등록
-- 이미 초기화된 프로젝트에서도 안전 (멱등성)
+`.vela/` 디렉토리를 생성하고 Claude Code hooks를 자동 등록합니다.
+
+생성되는 파일:
+- `.vela/hooks/` — vela-gate.cjs, tracker.cjs, shared/
+- `.vela/agents/` — 25개 에이전트 프롬프트
+- `.vela/config.json` — 프로젝트 설정
+- `.claude/settings.local.json` — Hook 등록
 
 ---
 
-### `vela start <request>`
+## vela start — 파이프라인 시작
 
-새 파이프라인을 시작합니다.
+```bash
+vela start "<description>" [options]
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--scale <size>` | 파이프라인 규모: `small`, `medium`, `large` |
+| `--type <name>` | 커스텀 파이프라인 타입 (`.vela/pipelines/*.json`) |
+
+### Examples
 
 ```bash
 vela start "OAuth2 인증 추가" --scale large
-vela start "Fix login bug" --scale small
-vela start "Code review" --type review
+vela start "버그 수정" --scale small
+vela start "코드 리뷰" --type review
 ```
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--scale <size>` | `medium` | `small` / `medium` / `large` |
-| `--type <name>` | — | 빌트인(`standard`/`quick`/`trivial`) 또는 커스텀 타입 |
-
-출력: JSON `{ ok, pipeline: { id, request, scale, steps, currentStep } }`
 
 ---
 
-### `vela state`
-
-현재 파이프라인 상태를 조회합니다.
+## vela state — 파이프라인 상태
 
 ```bash
 vela state
 ```
 
-출력: JSON `{ ok, pipeline: { id, request, scale, currentStep, stepIndex, totalSteps, status } }`
-
-활성 파이프라인이 없으면: `{ ok: false, error: "No active pipeline" }`
+현재 활성 파이프라인의 상태를 JSON으로 출력합니다.
 
 ---
 
-### `vela transition`
-
-다음 파이프라인 단계로 전이합니다.
+## vela transition — 단계 전이
 
 ```bash
 vela transition
 ```
 
-- 전이 조건이 충족되지 않으면 거부
-- Vela Gate가 순서를 강제
-
-출력: JSON `{ ok, previous, current, remaining }`
+파이프라인의 다음 단계로 전이합니다. 전이 조건이 충족되지 않으면 거부됩니다.
 
 ---
 
-### `vela cancel`
-
-활성 파이프라인을 취소합니다.
+## vela cancel — 파이프라인 취소
 
 ```bash
 vela cancel
 ```
 
-출력: JSON `{ ok, cancelled: true }`
-
 ---
 
-## Hierarchy
-
-### `vela milestone create <title>`
+## vela milestone — 마일스톤 관리
 
 ```bash
-vela milestone create "v1.0 Release" --description "첫 번째 릴리스"
-```
-
-| Option | Description |
-|--------|-------------|
-| `--description <text>` | 마일스톤 설명 |
-
----
-
-### `vela milestone list`
-
-```bash
+vela milestone create "<title>" [--description "<desc>"]
 vela milestone list
+vela milestone complete <id>
 ```
-
-출력: JSON `{ ok, milestones: [...] }`
 
 ---
 
-### `vela milestone complete <id>`
+## vela slice — 슬라이스 관리
 
 ```bash
-vela milestone complete MS001
+vela slice create "<title>" --milestone <id>
+vela slice list --milestone <id>
+vela slice boundary <id> --inputs "..." --outputs "..."
+vela slice complete <id>
 ```
-
-> 모든 슬라이스가 완료 상태여야 합니다.
 
 ---
 
-### `vela slice create <title>`
+## vela task — 태스크 관리
 
 ```bash
-vela slice create "User Auth" --milestone MS001
-```
-
-| Option | Description |
-|--------|-------------|
-| `--milestone <id>` | 소속 마일스톤 ID |
-
----
-
-### `vela slice list`
-
-```bash
-vela slice list --milestone MS001
+vela task create "<title>" --slice <id>
+vela task list --slice <id>
+vela task complete <id>
 ```
 
 ---
 
-### `vela slice complete <id>`
-
-```bash
-vela slice complete SL001
-```
-
-> 모든 태스크가 완료 상태여야 합니다.
-
----
-
-### `vela slice boundary <id>`
-
-슬라이스의 바운더리 맵을 설정합니다.
-
-```bash
-vela slice boundary SL001 --inputs "email, password" --outputs "JWT token, refresh token"
-```
-
----
-
-### `vela task create <title>`
-
-```bash
-vela task create "Implement JWT" --slice SL001
-```
-
-| Option | Description |
-|--------|-------------|
-| `--slice <id>` | 소속 슬라이스 ID |
-
----
-
-### `vela task list`
-
-```bash
-vela task list --slice SL001
-```
-
----
-
-### `vela task complete <id>`
-
-```bash
-vela task complete TK001
-```
-
-> **Cascading:** 마지막 태스크 완료 → 슬라이스 자동 완료 → 마일스톤 자동 완료
-
----
-
-## Discuss
-
-### `vela discuss start`
-
-새 기획 세션을 시작합니다.
+## vela discuss — 대화형 기획
 
 ```bash
 vela discuss start
-```
-
----
-
-### `vela discuss status`
-
-현재 세션 상태를 조회합니다.
-
-```bash
+vela discuss advance --data "..."
 vela discuss status
-vela discuss status --session <id>
+vela discuss render [--output <path>]
 ```
+
+6단계: vision → reflection → qa → depth-check → requirements → roadmap
 
 ---
 
-### `vela discuss advance`
-
-다음 단계로 진행합니다.
-
-```bash
-vela discuss advance --data "프로젝트 비전 설명..."
-vela discuss advance --data "기술 스택 결정" --session <id>
-```
-
-| Option | Description |
-|--------|-------------|
-| `--data <text>` | 이 단계의 입력 데이터 |
-| `--session <id>` | 특정 세션 지정 |
-
----
-
-### `vela discuss render`
-
-완료된 세션을 구조화된 마크다운으로 렌더링합니다.
-
-```bash
-vela discuss render
-vela discuss render --output ./docs/context.md
-vela discuss render --session <id>
-```
-
----
-
-## Git
-
-### `vela git branch`
-
-파이프라인용 브랜치를 생성합니다.
-
-```bash
-vela git branch
-# → vela/oauth-auth-1530
-```
-
-`vela/` 접두사가 자동 부여됩니다.
-
----
-
-### `vela git commit`
-
-변경사항을 커밋합니다.
-
-```bash
-vela git commit
-```
-
-- Conventional Commits 형식
-- `Vela-Pipeline: <id>` 참조 자동 추가
-- Vela Gate VG-07: execute/commit/finalize에서만 허용
-
----
-
-### `vela git merge`
-
-파이프라인 브랜치를 베이스 브랜치로 squash merge합니다.
-
-```bash
-vela git merge
-```
-
----
-
-## Requirements
-
-### `vela req create <id>`
-
-```bash
-vela req create "R001" --title "사용자 로그인" --class core-capability
-vela req create "R002" --title "소셜 로그인" --class differentiator --description "Google, GitHub OAuth"
-```
-
-| Option | Description |
-|--------|-------------|
-| `--title <text>` | 요구사항 제목 |
-| `--class <type>` | 8종 분류 (아래 참조) |
-| `--description <text>` | 상세 설명 |
-
-**Requirements Class (8종):**
-
-| Class | 의미 |
-|-------|------|
-| `core-capability` | 핵심 기능 |
-| `differentiator` | 차별화 기능 |
-| `quality-attribute` | 품질 속성 |
-| `compliance/security` | 규정 준수 / 보안 |
-| `launchability` | 출시 요건 |
-| `continuity` | 지속성 |
-| `integration` | 통합 |
-| `anti-feature` | 안티 기능 |
-
----
-
-### `vela req list`
-
-```bash
-vela req list
-vela req list --status active
-vela req list --status validated
-```
-
----
-
-### `vela req update <id>`
-
-```bash
-vela req update R001 --status validated --validation "login.test.ts 통과"
-```
-
----
-
-### `vela req delete <id>`
-
-```bash
-vela req delete R003
-```
-
----
-
-### `vela req render`
-
-REQUIREMENTS.md를 생성합니다.
-
-```bash
-vela req render
-vela req render --output ./REQUIREMENTS.md
-```
-
----
-
-## Auto-mode
-
-### `vela auto start`
-
-```bash
-vela auto start --milestone MS001 --slice SL001
-```
-
-> `--milestone`과 `--slice` 둘 다 필수입니다.
-
----
-
-### `vela auto status`
-
-```bash
-vela auto status
-```
-
----
-
-### `vela auto next`
-
-현재 태스크 완료 후 다음으로 진행합니다.
-
-```bash
-vela auto next
-```
-
----
-
-### `vela auto pause`
-
-```bash
-vela auto pause --reason "Rate limit"
-```
-
----
-
-### `vela auto resume`
-
-```bash
-vela auto resume
-```
-
----
-
-### `vela auto cancel`
-
-```bash
-vela auto cancel
-```
-
----
-
-## Agents
-
-### `vela agents list`
-
-모든 에이전트 역할을 나열합니다.
+## vela agents — 에이전트 관리
 
 ```bash
 vela agents list
+vela agents show <role>
+vela agents strategy --scale <size>
 ```
 
 ---
 
-### `vela agents show <role>`
-
-특정 역할의 프롬프트를 출력합니다.
-
-```bash
-vela agents show researcher
-vela agents show pm
-```
-
----
-
-### `vela agents strategy`
-
-규모별 에이전트 전략을 조회합니다.
-
-```bash
-vela agents strategy --scale large
-```
-
----
-
-## Other
-
-### `vela cost`
-
-파이프라인 비용/메트릭 리포트를 출력합니다.
+## vela cost — 비용 분석
 
 ```bash
 vela cost
@@ -450,66 +224,41 @@ vela cost
 
 ---
 
-### `vela tui`
-
-TUI 대시보드를 실행합니다 (Node.js ≥20 필요).
+## vela tui — TUI 대시보드
 
 ```bash
 vela tui
 ```
 
-`q` 키로 종료.
+Node.js ≥ 20 필요.
 
 ---
 
-### `vela continue save`
+## vela git — Git 통합
 
 ```bash
-vela continue save --milestone MS001 --slice SL001 [--task TK001] [--step execute] [--notes "JWT 구현 중"]
+vela git branch
+vela git commit
+vela git merge
 ```
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--milestone <id>` | ✅ | 마일스톤 ID |
-| `--slice <id>` | ✅ | 슬라이스 ID |
-| `--task <id>` | — | 태스크 ID |
-| `--step <step>` | — | 현재 단계 |
-| `--notes <text>` | — | 메모 |
+---
 
-### `vela continue load`
+## vela req — 요구사항 관리
 
 ```bash
+vela req create <id> --title "..." --class <class>
+vela req list [--status <status>]
+vela req update <id> --status <status>
+vela req render
+```
+
+---
+
+## vela continue — 세션 재개
+
+```bash
+vela continue save --milestone <id> --slice <id> [--task <id>] [--notes "..."]
 vela continue load
-```
-
-### `vela continue clear`
-
-```bash
 vela continue clear
-```
-
----
-
-## JSON Output
-
-모든 명령어는 JSON 형태로 결과를 출력합니다:
-
-**성공:**
-```json
-{ "ok": true, "pipeline": { ... } }
-```
-
-**실패:**
-```json
-{ "ok": false, "error": "No active pipeline" }
-```
-
-이를 활용해 스크립트에서 파싱하거나 다른 도구와 연동할 수 있습니다:
-
-```bash
-# jq로 현재 단계 추출
-vela state | jq -r '.pipeline.currentStep'
-
-# 파이프라인 활성 여부 확인
-vela state | jq -r '.ok'
 ```

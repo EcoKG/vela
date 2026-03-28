@@ -1,29 +1,22 @@
-# ⛵ Configuration Reference
+# ⚙️ Configuration
 
-Vela의 설정 파일과 커스터마이징 방법을 설명합니다.
-
----
-
-## 설정 파일 구조
-
-```
-your-project/
-├── .vela/
-│   ├── config.json          # ← 핵심 설정
-│   ├── hooks/               # 2개 enforcement hook (CJS) + shared/
-│   ├── agents/              # 25개 agent prompt 파일
-│   ├── state/               # SQLite DB, pipeline state (gitignored)
-│   └── pipelines/           # ← 커스텀 파이프라인 정의 (선택)
-│       └── review.json
-└── .claude/
-    └── settings.local.json  # Claude Code hook 등록 (자동 생성)
-```
+Vela의 설정 파일과 커스터마이징 방법을 안내합니다.
 
 ---
 
-## config.json
+## 설정 파일 위치
 
-`vela init`이 생성하는 기본 설정 — 2개 필드만 포함합니다:
+| 파일 | 위치 | 용도 |
+|------|------|------|
+| `.vela/config.json` | 프로젝트 루트 | 파이프라인 설정, 프로젝트별 옵션 |
+| `~/.vela/auth.json` | 홈 디렉토리 | API 키 프로필 (전역) |
+| `.claude/settings.local.json` | 프로젝트 루트 | Claude Code hook 등록 (자동 생성) |
+
+---
+
+## .vela/config.json
+
+`vela init`이 생성하는 프로젝트 설정:
 
 ```json
 {
@@ -35,26 +28,14 @@ your-project/
 }
 ```
 
-| 필드 | 설명 |
-|------|------|
-| `version` | 설정 파일 버전 |
-| `pipeline.default` | 기본 파이프라인 타입 (`standard`, `quick`, `trivial`) |
-| `pipeline.scales` | 사용 가능한 파이프라인 스케일 목록 |
+### 커스텀 파이프라인
 
----
-
-## 커스텀 파이프라인
-
-`.vela/pipelines/` 디렉토리에 JSON 파일을 추가하면 커스텀 파이프라인을 정의할 수 있습니다.
-
-### 예시: 코드 리뷰 파이프라인
-
-`.vela/pipelines/review.json`:
+`.vela/pipelines/` 디렉토리에 JSON 파일로 커스텀 파이프라인을 정의할 수 있습니다:
 
 ```json
 {
   "name": "review",
-  "description": "코드 리뷰 전용 파이프라인",
+  "description": "Code review pipeline",
   "steps": ["init", "research", "execute", "commit", "finalize"],
   "mode_map": {
     "init": "read",
@@ -66,85 +47,101 @@ your-project/
 }
 ```
 
-사용:
+사용: `vela start "코드 리뷰" --type review`
 
-```bash
-vela start "코드 리뷰" --type review
-```
+---
 
-### 예시: 핫픽스 파이프라인
+## ~/.vela/auth.json
 
-`.vela/pipelines/hotfix.json`:
+API 키 프로필 저장 (v2 형식):
 
 ```json
 {
-  "name": "hotfix",
-  "description": "긴급 수정 — 최소 단계",
-  "steps": ["init", "execute", "commit"],
-  "mode_map": {
-    "init": "read",
-    "execute": "readwrite",
-    "commit": "readwrite"
-  }
+  "version": 2,
+  "profiles": {
+    "default": {
+      "apiKey": "sk-ant-...",
+      "createdAt": "2026-03-27T10:00:00.000Z"
+    },
+    "work": {
+      "apiKey": "sk-ant-...",
+      "createdAt": "2026-03-27T11:00:00.000Z"
+    }
+  },
+  "activeProfile": "default"
 }
 ```
+
+### 인증 우선순위
+
+1. `ANTHROPIC_API_KEY` 환경변수 (최우선)
+2. `~/.vela/auth.json`의 활성 프로필
+3. 미설정 시 안내 메시지 출력
+
+### 프로필 관리
+
+```bash
+vela auth add work        # 새 프로필 추가 (API 키 입력)
+vela auth list            # 프로필 목록 (활성 프로필 ✓ 표시)
+vela auth use work        # 활성 프로필 전환
+vela auth remove work     # 프로필 삭제
+vela auth status          # 현재 인증 상태 확인
+```
+
+### 마이그레이션
+
+v1 형식 (`{ apiKey, savedAt }`)에서 v2 형식으로 자동 마이그레이션됩니다.
 
 ---
 
 ## .claude/settings.local.json
 
-`vela init`이 자동 생성합니다. 수동 수정은 권장하지 않습니다.
+`vela init`이 자동 생성하는 Claude Code hook 등록 파일:
 
-### Hook 등록
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hook": "node .vela/hooks/vela-gate.cjs"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hook": "node .vela/hooks/tracker.cjs"
+      }
+    ]
+  }
+}
+```
 
-| 이벤트 | Hook | 설명 |
-|--------|------|------|
-| `PreToolUse` | vela-gate | R/W 모드 강제, 시크릿 감지, 민감 파일 보호, 파이프라인 순서 강제, TDD, git 게이트 |
-| `PostToolUse` | tracker | trace.jsonl 로깅 |
+이 파일을 직접 편집할 필요는 없습니다. `vela init`이 자동 관리합니다.
 
-### permissions (Claude Code 자체 기능)
+---
 
-| 섹션 | 설명 |
+## 에이전트 오버라이드
+
+`.vela/agents/` 디렉토리의 프롬프트 파일을 직접 편집하여 에이전트 동작을 커스터마이징할 수 있습니다:
+
+```
+.vela/agents/
+├── index.md              # 마스터 프롬프트
+├── researcher/           # 리서치 에이전트
+├── planner/              # 기획 에이전트
+├── executor/             # 실행 에이전트
+├── debugger/             # 디버깅 에이전트
+├── synthesizer/          # 요약 에이전트
+└── pm/                   # PM 에이전트
+```
+
+---
+
+## 환경변수
+
+| 변수 | 설명 |
 |------|------|
-| `permissions.allow` | Vela CLI 명령 허용: `Bash(vela *)`, `Bash(npx vela *)` |
-| `permissions.deny` | 위험 명령 절대 차단 (rm -rf, git push --force 등) |
-
----
-
-## Agent Prompt Override
-
-프로젝트별로 에이전트 프롬프트를 오버라이드할 수 있습니다.
-
-`.vela/agents/` 디렉토리의 파일을 수정하면, `vela agents show` 명령이 수정된 버전을 반환합니다.
-
-```bash
-# 기본 researcher 프롬프트 확인
-vela agents show researcher
-
-# 프로젝트별 오버라이드
-# .vela/agents/researcher/index.md 를 직접 수정
-```
-
-> `vela init`은 이미 존재하는 agent 파일을 덮어쓰지 않으므로, 오버라이드가 안전하게 유지됩니다.
-
----
-
-## 산출물 구조
-
-파이프라인 실행 시 생성되는 산출물:
-
-```
-.vela/artifacts/{date}/{slug}/
-├── meta.json                  # 파이프라인 메타데이터
-├── pipeline-state.json        # 현재 상태
-├── research.md                # 리서치 결과
-├── review-research.md         # 리서치 리뷰
-├── approval-research.json     # 리서치 승인
-├── plan.md                    # 구현 계획
-├── review-plan.md             # 계획 리뷰
-├── approval-plan.json         # 계획 승인
-├── verification.md            # 검증 결과
-├── report.md                  # 최종 리포트
-├── diff.patch                 # 변경사항 diff
-└── trace.jsonl                # 실행 트레이스
-```
+| `ANTHROPIC_API_KEY` | Anthropic API 키 (최우선 인증) |
+| `VELA_REPO` | install.sh에서 사용할 GitHub 리포 (기본: `EcoKG/vela`) |
+| `VELA_VERSION` | install.sh에서 설치할 버전 (기본: `0.1.1`) |
