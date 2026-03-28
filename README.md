@@ -7,7 +7,7 @@
   <br />
   <em>AI Coding Agent with Built-in Governance</em>
   <br />
-  <code>v0.2.1</code>
+  <code>v0.2.2</code>
   <br />
   <br />
   <a href="#quick-start">Quick Start</a> · <a href="#why-vela">Why Vela</a> · <a href="#vela-chat">Chat Agent</a> · <a href="#governance-engine">Governance</a> · <a href="#architecture">Architecture</a> · <a href="#documentation">Docs</a>
@@ -238,7 +238,7 @@ Tracker
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                         ⛵  V E L A  v0.2.1                     │
+│                         ⛵  V E L A  v0.2.2                     │
 │                                                                  │
 │  ┌─── Independent Agent ──────────────────────────────────────┐  │
 │  │  vela chat                                                 │  │

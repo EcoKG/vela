@@ -8,7 +8,7 @@ set -eu
 # Configuration (override via env or --version flag)
 # ---------------------------------------------------------------------------
 VELA_REPO="${VELA_REPO:-EcoKG/vela}"
-VELA_VERSION="${VELA_VERSION:-0.2.1}"
+VELA_VERSION="${VELA_VERSION:-0.2.2}"
 
 # ---------------------------------------------------------------------------
 # Argument parsing
