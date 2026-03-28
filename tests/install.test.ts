@@ -9,6 +9,8 @@ import { accessSync, constants, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = process.cwd();
+const PKG = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf-8')) as { version: string };
+const VERSION = PKG.version;
 
 // ── npm pack validation ─────────────────────────────────────────────
 
@@ -26,7 +28,7 @@ describe('npm pack', () => {
       expect(bytes).toBeLessThan(500 * 1024);
     }
     // Also verify via actual pack if tarball already exists
-    const tgzPath = join(ROOT, 'vela-cli-0.2.0.tgz');
+    const tgzPath = join(ROOT, `vela-cli-${VERSION}.tgz`);
     try {
       const stat = statSync(tgzPath);
       expect(stat.size).toBeLessThan(500 * 1024);
@@ -79,7 +81,7 @@ describe('scripts/install.sh', () => {
     expect(output).toContain('Vela CLI');
 
     // Should mention the version
-    expect(output).toContain('0.2.0');
+    expect(output).toContain(VERSION);
   });
 
   it('--help exits 0 and prints usage', () => {
@@ -111,5 +113,19 @@ describe('scripts/release.sh', () => {
   it('is executable', () => {
     const releaseScript = join(ROOT, 'scripts', 'release.sh');
     accessSync(releaseScript, constants.X_OK);
+  });
+
+  it('has bash shebang', () => {
+    const content = readFileSync(join(ROOT, 'scripts', 'release.sh'), 'utf-8');
+    expect(content.split('\n')[0]).toBe('#!/usr/bin/env bash');
+  });
+
+  it('--help exits 0 and prints usage', () => {
+    const output = execSync('bash scripts/release.sh --help 2>&1', {
+      encoding: 'utf-8',
+      cwd: ROOT,
+    });
+    expect(output).toContain('--publish');
+    expect(output).toContain('--dry-run');
   });
 });

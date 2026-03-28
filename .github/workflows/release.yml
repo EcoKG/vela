@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+      - name: Verify CLI
+        run: |
+          CLI_VERSION=$(node dist/cli.js --version)
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$CLI_VERSION" != "$TAG_VERSION" ]; then
+            echo "Version mismatch: CLI=$CLI_VERSION TAG=$TAG_VERSION"
+            exit 1
+          fi
+
+      - name: Pack tarball
+        run: npm pack
+
+      - name: Generate checksum
+        run: sha256sum vela-cli-*.tgz > vela-cli-*.tgz.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            vela-cli-*.tgz
+            vela-cli-*.tgz.sha256
+          generate_release_notes: true
