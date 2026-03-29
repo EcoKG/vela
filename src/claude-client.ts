@@ -50,10 +50,14 @@ export interface SendMessageOptions {
   maxTokens?: number;
   /** System prompt. */
   system?: string;
-  /** Maximum agentic turns (defaults to 1). */
+  /** Maximum agentic turns (defaults to 10). */
   maxTurns?: number;
   /** Streaming callback — invoked for each text chunk as it arrives. */
   onText?: (text: string) => void;
+  /** Called when a tool begins execution (first tool_progress per tool_use_id). */
+  onToolStart?: (toolName: string, toolId: string) => void;
+  /** Called when a tool finishes execution (tool_use_summary event). */
+  onToolDone?: (toolName: string, toolId: string, summary?: string) => void;
 }
 
 // ── Streaming send (shim) ──────────────────────────────────────
@@ -77,6 +81,8 @@ export async function sendMessage(
     system: options.system,
     maxTurns: options.maxTurns,
     onText: options.onText,
+    onToolStart: options.onToolStart,
+    onToolDone: options.onToolDone,
   };
   return llmSendMessage(messages, llmOptions);
 }

@@ -39,6 +39,22 @@ export interface ThemePalette {
     title: string;
     border: string;
   };
+  statusBar: {
+    bg: string;
+    fg: string | undefined;
+    accent: string;
+    dim: string;
+  };
+  message: {
+    userBg: string | undefined;
+    systemBadgeBg: string;
+    systemBadgeFg: string;
+    separator: string;
+  };
+  input: {
+    prompt: string;
+    promptModel: string;
+  };
 }
 
 // ── Detection ───────────────────────────────────────
@@ -136,6 +152,22 @@ export const darkPalette: ThemePalette = {
     title: 'magenta',
     border: 'magenta',
   },
+  statusBar: {
+    bg: 'gray',
+    fg: 'white',
+    accent: 'cyan',
+    dim: 'white',
+  },
+  message: {
+    userBg: undefined,
+    systemBadgeBg: 'magenta',
+    systemBadgeFg: 'white',
+    separator: 'gray',
+  },
+  input: {
+    prompt: 'cyan',
+    promptModel: 'gray',
+  },
 };
 
 /** Light palette — same structure, colors suited for light terminal backgrounds. */
@@ -170,6 +202,22 @@ export const lightPalette: ThemePalette = {
   dashboard: {
     title: 'magenta',
     border: 'magenta',
+  },
+  statusBar: {
+    bg: 'white',
+    fg: 'black',
+    accent: 'blue',
+    dim: 'gray',
+  },
+  message: {
+    userBg: undefined,
+    systemBadgeBg: 'magenta',
+    systemBadgeFg: 'white',
+    separator: 'gray',
+  },
+  input: {
+    prompt: 'blue',
+    promptModel: 'gray',
   },
 };
 

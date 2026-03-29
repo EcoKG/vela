@@ -5,7 +5,7 @@ import {
   SHORTCUT_LIST,
 } from '../src/tui/shortcuts.js';
 import type { SlashCommandContext, SlashCommandResult } from '../src/tui/shortcuts.js';
-import { openSessionDb, createSession } from '../src/session.js';
+import { openSessionDb, createSession, addMessage } from '../src/session.js';
 import type Database from 'better-sqlite3';
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -198,6 +198,75 @@ describe('handleSlashCommand', () => {
         action: 'error',
         message: 'No session database available',
       });
+    });
+  });
+
+  // ── /resume ──
+
+  describe('/resume', () => {
+    let db: Database.Database;
+
+    beforeEach(() => {
+      db = openSessionDb(); // in-memory
+    });
+
+    afterEach(() => {
+      try { db.close(); } catch { /* ignore */ }
+    });
+
+    it('/resume with no sessions returns error', () => {
+      const result = handleSlashCommand('/resume', makeContext({ db }));
+      expect(result).toEqual({ action: 'error', message: 'No sessions found.' });
+    });
+
+    it('/resume with no db returns error', () => {
+      const result = handleSlashCommand('/resume', makeContext({ db: null }));
+      expect(result).toEqual({ action: 'error', message: 'No session database available' });
+    });
+
+    it('/resume with invalid session ID returns error', () => {
+      const result = handleSlashCommand('/resume nonexistent-id', makeContext({ db }));
+      expect(result).toEqual({ action: 'error', message: 'Session not found: nonexistent-id' });
+    });
+
+    it('/resume with no arg loads latest session and messages', () => {
+      const session = createSession(db, { model: 'test-model', title: 'Latest' });
+      addMessage(db, { session_id: session.id, role: 'user', display: 'hello', content: 'hello' });
+      addMessage(db, { session_id: session.id, role: 'assistant', display: 'hi', content: 'hi' });
+
+      const result = handleSlashCommand('/resume', makeContext({ db }));
+      expect(result).not.toBeNull();
+      expect(result!.action).toBe('resume');
+      if (result!.action === 'resume') {
+        expect(result!.session.id).toBe(session.id);
+        expect(result!.messages).toHaveLength(2);
+        expect(result!.messages[0].role).toBe('user');
+        expect(result!.messages[1].role).toBe('assistant');
+      }
+    });
+
+    it('/resume <id> loads specific session', () => {
+      const s1 = createSession(db, { model: 'test-model', title: 'First' });
+      const s2 = createSession(db, { model: 'test-model', title: 'Second' });
+      addMessage(db, { session_id: s1.id, role: 'user', display: 'msg1', content: 'msg1' });
+      addMessage(db, { session_id: s2.id, role: 'user', display: 'msg2', content: 'msg2' });
+
+      const result = handleSlashCommand(`/resume ${s1.id}`, makeContext({ db }));
+      expect(result).not.toBeNull();
+      if (result!.action === 'resume') {
+        expect(result!.session.id).toBe(s1.id);
+        expect(result!.messages).toHaveLength(1);
+        expect(result!.messages[0].display).toBe('msg1');
+      }
+    });
+
+    it('/RESUME is case-insensitive', () => {
+      const session = createSession(db, { model: 'test-model', title: 'Test' });
+      const result = handleSlashCommand('/RESUME', makeContext({ db }));
+      expect(result).not.toBeNull();
+      if (result!.action === 'resume') {
+        expect(result!.session.id).toBe(session.id);
+      }
     });
   });
 

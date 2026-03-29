@@ -184,10 +184,6 @@ export {
 } from './tool-engine.js';
 export type { ToolResult } from './tool-engine.js';
 
-// ── TUI components ─────────────────────────────────────────────────
-export { ChatApp } from './tui/ChatApp.js';
-export type { ChatAppProps } from './tui/ChatApp.js';
-
 // ── Governance ─────────────────────────────────────────────────────
 export { checkGate, buildGateContext } from './governance/index.js';
 export type { GateContext, GateResult } from './governance/index.js';

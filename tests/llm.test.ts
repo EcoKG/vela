@@ -273,7 +273,7 @@ describe('sendMessage (llm.ts)', () => {
   });
 
   // 13. Default maxTurns
-  it('defaults maxTurns to 1 when not specified', async () => {
+  it('defaults maxTurns to 10 when not specified', async () => {
     let capturedOpts: Record<string, unknown> = {};
     mockQuery = (params) => {
       capturedOpts = (params.options ?? {}) as Record<string, unknown>;
@@ -282,7 +282,7 @@ describe('sendMessage (llm.ts)', () => {
 
     await sendMessage([{ role: 'user', content: 'Hi' }]);
 
-    expect(capturedOpts.maxTurns).toBe(1);
+    expect(capturedOpts.maxTurns).toBe(10);
     expect(capturedOpts.allowDangerouslySkipPermissions).toBe(true);
   });
 
@@ -314,5 +314,138 @@ describe('sendMessage (llm.ts)', () => {
 
     const result = await sendMessage([]);
     expect(result.type).toBe('message');
+  });
+
+  // ── Tool event callback tests ──────────────────────────────
+
+  // 16. tool_progress triggers onToolStart callback
+  it('calls onToolStart on first tool_progress per tool_use_id', async () => {
+    mockQuery = () => asyncIter([
+      {
+        type: 'tool_progress',
+        tool_use_id: 'tu_001',
+        tool_name: 'Read',
+        content: 'reading file...',
+      },
+      resultMessage('done'),
+    ]);
+
+    const starts: Array<{ name: string; id: string }> = [];
+    await sendMessage(
+      [{ role: 'user', content: 'Hi' }],
+      { onToolStart: (name, id) => starts.push({ name, id }) },
+    );
+
+    expect(starts).toEqual([{ name: 'Read', id: 'tu_001' }]);
+  });
+
+  // 17. tool_use_summary triggers onToolDone callback
+  it('calls onToolDone on tool_use_summary event', async () => {
+    mockQuery = () => asyncIter([
+      {
+        type: 'tool_use_summary',
+        tool_use_id: 'tu_002',
+        tool_name: 'Write',
+        summary: 'wrote 42 lines to foo.ts',
+      },
+      resultMessage('done'),
+    ]);
+
+    const dones: Array<{ name: string; id: string; summary?: string }> = [];
+    await sendMessage(
+      [{ role: 'user', content: 'Hi' }],
+      { onToolDone: (name, id, summary) => dones.push({ name, id, summary }) },
+    );
+
+    expect(dones).toEqual([{ name: 'Write', id: 'tu_002', summary: 'wrote 42 lines to foo.ts' }]);
+  });
+
+  // 18. Duplicate tool_progress with same tool_use_id only fires onToolStart once
+  it('deduplicates tool_progress events by tool_use_id', async () => {
+    mockQuery = () => asyncIter([
+      { type: 'tool_progress', tool_use_id: 'tu_003', tool_name: 'Bash', content: 'step1' },
+      { type: 'tool_progress', tool_use_id: 'tu_003', tool_name: 'Bash', content: 'step2' },
+      { type: 'tool_progress', tool_use_id: 'tu_003', tool_name: 'Bash', content: 'step3' },
+      resultMessage('done'),
+    ]);
+
+    const starts: Array<{ name: string; id: string }> = [];
+    await sendMessage(
+      [{ role: 'user', content: 'Hi' }],
+      { onToolStart: (name, id) => starts.push({ name, id }) },
+    );
+
+    expect(starts).toHaveLength(1);
+    expect(starts[0]).toEqual({ name: 'Bash', id: 'tu_003' });
+  });
+
+  // 19. tool_progress missing tool_name defaults to 'unknown'
+  it('uses "unknown" when tool_progress has no tool_name', async () => {
+    mockQuery = () => asyncIter([
+      { type: 'tool_progress', tool_use_id: 'tu_004' },
+      resultMessage('done'),
+    ]);
+
+    const starts: Array<{ name: string; id: string }> = [];
+    await sendMessage(
+      [{ role: 'user', content: 'Hi' }],
+      { onToolStart: (name, id) => starts.push({ name, id }) },
+    );
+
+    expect(starts).toEqual([{ name: 'unknown', id: 'tu_004' }]);
+  });
+
+  // 20. tool_use_summary missing tool_name defaults to 'unknown'
+  it('uses "unknown" when tool_use_summary has no tool_name', async () => {
+    mockQuery = () => asyncIter([
+      { type: 'tool_use_summary', tool_use_id: 'tu_005' },
+      resultMessage('done'),
+    ]);
+
+    const dones: Array<{ name: string; id: string; summary?: string }> = [];
+    await sendMessage(
+      [{ role: 'user', content: 'Hi' }],
+      { onToolDone: (name, id, summary) => dones.push({ name, id, summary }) },
+    );
+
+    expect(dones).toEqual([{ name: 'unknown', id: 'tu_005', summary: undefined }]);
+  });
+
+  // 21. Undefined callbacks don't crash on tool events
+  it('handles tool events gracefully when callbacks are undefined', async () => {
+    mockQuery = () => asyncIter([
+      { type: 'tool_progress', tool_use_id: 'tu_006', tool_name: 'Read' },
+      { type: 'tool_use_summary', tool_use_id: 'tu_006', tool_name: 'Read', summary: 'ok' },
+      resultMessage('done'),
+    ]);
+
+    // No onToolStart/onToolDone — should not crash
+    const result = await sendMessage(
+      [{ role: 'user', content: 'Hi' }],
+      {},
+    );
+
+    expect(result.type).toBe('message');
+  });
+
+  // 22. Multiple distinct tools fire separate onToolStart calls
+  it('fires onToolStart for each distinct tool_use_id', async () => {
+    mockQuery = () => asyncIter([
+      { type: 'tool_progress', tool_use_id: 'tu_a', tool_name: 'Read' },
+      { type: 'tool_progress', tool_use_id: 'tu_b', tool_name: 'Write' },
+      { type: 'tool_progress', tool_use_id: 'tu_a', tool_name: 'Read' }, // duplicate
+      resultMessage('done'),
+    ]);
+
+    const starts: Array<{ name: string; id: string }> = [];
+    await sendMessage(
+      [{ role: 'user', content: 'Hi' }],
+      { onToolStart: (name, id) => starts.push({ name, id }) },
+    );
+
+    expect(starts).toEqual([
+      { name: 'Read', id: 'tu_a' },
+      { name: 'Write', id: 'tu_b' },
+    ]);
   });
 });

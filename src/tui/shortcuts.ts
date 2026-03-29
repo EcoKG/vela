@@ -1,7 +1,9 @@
 import type Database from 'better-sqlite3';
-import { listSessions } from '../session.js';
-import type { ChatSession } from '../session.js';
+import { listSessions, getSession, getLatestSession, getMessages } from '../session.js';
+import type { ChatSession, ChatMessageRow } from '../session.js';
 import { resolveModelAlias } from '../models.js';
+import { initProject } from '../init.js';
+import type { InitResult } from '../init.js';
 
 // ── Shortcut key definitions ───────────────────────────────────────
 
@@ -31,10 +33,12 @@ export type SlashCommandResult =
   | { action: 'clear' }
   | { action: 'fresh' }
   | { action: 'sessions'; sessions: ChatSession[] }
+  | { action: 'resume'; session: ChatSession; messages: ChatMessageRow[] }
   | { action: 'model'; model: string }
   | { action: 'model-switch'; model: string }
   | { action: 'budget-set'; amount: number }
   | { action: 'budget-status' }
+  | { action: 'init'; result: InitResult }
   | { action: 'auto-toggle' }
   | { action: 'pipeline-start'; request: string; scale?: string; type?: string }
   | { action: 'pipeline-state' }
@@ -78,6 +82,27 @@ export function handleSlashCommand(
       }
       const sessions = listSessions(context.db);
       return { action: 'sessions', sessions };
+    }
+
+    case '/resume': {
+      if (!context.db) {
+        return { action: 'error', message: 'No session database available' };
+      }
+      const resumeId = parts[1];
+      let session: ChatSession | undefined;
+      if (resumeId) {
+        session = getSession(context.db, resumeId);
+        if (!session) {
+          return { action: 'error', message: `Session not found: ${resumeId}` };
+        }
+      } else {
+        session = getLatestSession(context.db);
+        if (!session) {
+          return { action: 'error', message: 'No sessions found.' };
+        }
+      }
+      const messages = getMessages(context.db, session.id);
+      return { action: 'resume', session, messages };
     }
 
     case '/model':
@@ -134,6 +159,16 @@ export function handleSlashCommand(
 
     case '/cancel':
       return { action: 'pipeline-cancel' };
+
+    case '/init': {
+      try {
+        const result = initProject(process.cwd());
+        return { action: 'init', result };
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { action: 'error', message: `Init failed: ${msg}` };
+      }
+    }
 
     default:
       return {

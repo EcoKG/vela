@@ -8,25 +8,23 @@
   },
   "scripts": {
     "build": "tsc",
-    "postbuild": "test -f dist/cli.js && (head -1 dist/cli.js | grep -q '^#!/' || sed -i '1i#!/usr/bin/env node' dist/cli.js) || true; rm -rf dist/hooks && cp -r src/hooks dist/hooks; rm -rf dist/agents && cp -r src/agents dist/agents",
+    "postbuild": "test -f dist/cli.js && (head -1 dist/cli.js | grep -q '^#!/' || sed -i '1i#!/usr/bin/env node' dist/cli.js) && chmod +x dist/cli.js || true; rm -rf dist/hooks && cp -r src/hooks dist/hooks; rm -rf dist/agents && cp -r src/agents dist/agents",
     "test": "vitest run",
     "dev": "tsx src/cli.ts"
   },
   "dependencies": {
-    "@inkjs/ui": "^2.0.0",
     "better-sqlite3": "^11.0.0",
     "commander": "^12.0.0",
-    "fullscreen-ink": "^0.1.0",
-    "ink": "^6.8.0",
-    "ink-scroll-view": "^0.3.6",
-    "react": "^19.2.4"
+    "image-size": "^2.0.2",
+    "marked": "^17.0.5",
+    "string-width": "^8.2.0",
+    "strip-ansi": "^7.2.0",
+    "wrap-ansi": "^10.0.0"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
     "@types/better-sqlite3": "^7.0.0",
     "@types/node": "^22.0.0",
-    "@types/react": "^19.2.14",
-    "ink-testing-library": "^4.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0",
     "vitest": "^3.0.0"

@@ -145,6 +145,11 @@ describe('dual palettes', () => {
     expect(darkPalette.header.separator).toBe('gray');
     expect(darkPalette.dashboard.title).toBe('magenta');
     expect(darkPalette.dashboard.border).toBe('magenta');
+    // Message tokens
+    expect(darkPalette.message.userBg).toBeUndefined();
+    expect(darkPalette.message.systemBadgeBg).toBe('magenta');
+    expect(darkPalette.message.systemBadgeFg).toBe('white');
+    expect(darkPalette.message.separator).toBe('gray');
   });
 
   it('lightPalette has light-appropriate colors', async () => {
@@ -154,6 +159,11 @@ describe('dual palettes', () => {
     expect(lightPalette.velaBubble).toBe('blue');
     expect(lightPalette.velaLabel).toBe('blue');
     expect(lightPalette.header.brand).toBe('blue');
+    // Message tokens exist in light palette too
+    expect(lightPalette.message).toBeDefined();
+    expect(lightPalette.message.systemBadgeBg).toBeDefined();
+    expect(lightPalette.message.systemBadgeFg).toBeDefined();
+    expect(lightPalette.message.separator).toBeDefined();
   });
 
   it('both palettes have all valid ink colors (or undefined)', async () => {
@@ -161,7 +171,7 @@ describe('dual palettes', () => {
 
     for (const [label, palette] of [['dark', darkPalette], ['light', lightPalette]] as const) {
       const leaves = collectLeafValues(palette as unknown as Record<string, unknown>);
-      expect(leaves.length).toBe(18); // 18 leaf tokens
+      expect(leaves.length).toBe(28); // 28 leaf tokens (18 base + 4 statusBar + 4 message + 2 input)
       for (const { path, value } of leaves) {
         expect(isValidColor(value), `${label}Palette.${path} = "${value}" is not valid`).toBe(true);
       }
@@ -289,38 +299,5 @@ describe('detectColorScheme()', () => {
       Object.defineProperty(process.stdout, 'isTTY', { value: true, writable: true, configurable: true });
       expect(detect()).toBe('dark');
     });
-  });
-});
-
-// ── HelpOverlay completeness guard ──────────────────
-
-describe('HelpOverlay slash command completeness', () => {
-  const EXPECTED_COMMANDS = ['/help', '/quit', '/clear', '/sessions', '/model', '/fresh', '/budget', '/auto'];
-
-  it('lists all expected slash commands in HelpOverlay source', async () => {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const src = fs.readFileSync(
-      path.resolve(import.meta.dirname, '..', 'src', 'tui', 'HelpOverlay.tsx'),
-      'utf-8',
-    );
-
-    for (const cmd of EXPECTED_COMMANDS) {
-      expect(src, `HelpOverlay is missing slash command: ${cmd}`).toContain(`'${cmd}'`);
-    }
-  });
-
-  it('has exactly 8 slash command entries', async () => {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const src = fs.readFileSync(
-      path.resolve(import.meta.dirname, '..', 'src', 'tui', 'HelpOverlay.tsx'),
-      'utf-8',
-    );
-
-    // Each slash command uses the pattern: {'/<command>'.padEnd(12)}
-    const commandEntries = src.match(/\{'\/[a-z]+'.padEnd\(12\)\}/g);
-    expect(commandEntries).not.toBeNull();
-    expect(commandEntries!.length).toBe(8);
   });
 });

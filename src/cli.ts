@@ -53,13 +53,9 @@ import { resolveProvider } from './provider.js';
 import type { Provider } from './provider.js';
 import { resolveModelAlias, DEFAULT_MODEL } from './models.js';
 import { createInterface } from 'node:readline';
-import type { ChatMessage } from './claude-client.js';
 import { runToolLoop } from './tool-engine.js';
 import {
   openSessionDb,
-  getSession,
-  getLatestSession,
-  getMessages,
   listSessions,
 } from './session.js';
 import { homedir } from 'node:os';
@@ -984,38 +980,16 @@ authCmd
     }
   });
 
-// ── TUI command ────────────────────────────────────────────────────
-
-program
-  .command('tui')
-  .description('Launch TUI dashboard')
-  .action(async () => {
-    const nodeMajor = parseInt(process.versions.node, 10);
-    if (nodeMajor < 20) {
-      process.stderr.write(
-        `Error: 'vela tui' requires Node.js 20 or later (current: ${process.versions.node}).\n` +
-        `The TUI dashboard uses ink v6 + React 19 which need Node 20+.\n` +
-        `All other vela commands work on Node 18+.\n`
-      );
-      process.exit(1);
-    }
-    const { runTui } = await import('./tui/App.js');
-    runTui();
-  });
-
 // ── Chat command ───────────────────────────────────────────────────
 
 program
   .command('chat')
-  .description('Chat with Claude (interactive TUI or one-shot with a message)')
-  .argument('[message]', 'Message to send (omit for interactive TUI, or "sessions" to list)')
+  .description('One-shot chat with Claude or manage chat sessions')
+  .argument('[message]', 'Message to send (one-shot mode), or "sessions" to list saved sessions')
   .option('-m, --model <model>', 'Model to use (alias: sonnet, opus, haiku)', DEFAULT_MODEL)
   .option('--max-tokens <n>', 'Max response tokens', '4096')
   .option('--system <prompt>', 'System prompt')
-  .option('--resume [sessionId]', 'Resume a previous chat session (latest if no ID given)')
-  .option('--budget <amount>', 'Session budget limit in USD')
-  .option('--auto-route', 'Enable automatic model routing based on message complexity')
-  .action(async (message: string | undefined, opts: { model: string; maxTokens: string; system?: string; resume?: string | true; budget?: string; autoRoute?: boolean }) => {
+  .action(async (message: string | undefined, opts: { model: string; maxTokens: string; system?: string }) => {
     try {
       // ── sessions subcommand ──────────────────────────────────
       if (message === 'sessions') {
@@ -1031,89 +1005,18 @@ program
         process.exit(0);
       }
 
-      let provider: Provider;
-      try {
-        provider = resolveProvider();
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        process.stderr.write(`Error: ${msg}\n`);
-        process.exit(1);
-      }
-
-      // Resolve model alias (e.g. 'sonnet' → 'claude-sonnet-4-20250514')
-      const resolvedModel = resolveModelAlias(opts.model);
-
-      // Parse budget option
-      const budgetLimit = opts.budget !== undefined ? parseFloat(opts.budget) : undefined;
-      if (budgetLimit !== undefined && (Number.isNaN(budgetLimit) || budgetLimit < 0)) {
-        process.stderr.write('Error: --budget must be a non-negative number\n');
-        process.exit(1);
-      }
-
-      // ── resume handling ──────────────────────────────────────
-      if (opts.resume !== undefined) {
-        const projectRoot = findProjectRoot(process.cwd());
-        const velaDir = projectRoot ? join(projectRoot, '.vela') : join(homedir(), '.vela');
-        const sessionDb = openSessionDb(velaDir);
-        try {
-          // opts.resume is true when --resume given without value, string when --resume <id>
-          const session = opts.resume === true
-            ? getLatestSession(sessionDb)
-            : getSession(sessionDb, opts.resume);
-
-          if (!session) {
-            const detail = opts.resume === true
-              ? 'No saved sessions found.'
-              : `Session "${opts.resume}" not found.`;
-            process.stderr.write(`⛵ [Vela] ${detail}\n`);
-            process.exit(1);
-          }
-
-          const rows = getMessages(sessionDb, session.id);
-
-          // Build initialMessages (display) and initialConversation (API content)
-          const initialMessages = rows.map((r) => ({
-            role: r.role as 'user' | 'assistant',
-            content: r.display,
-          }));
-          const initialConversation: ChatMessage[] = rows.map((r) => ({
-            role: r.role as 'user' | 'assistant',
-            content: r.content as ChatMessage['content'],
-          }));
-
-          process.stderr.write(`⛵ [Vela] Resuming session ${session.id} (${session.title ?? 'untitled'})\n`);
-
-          const nodeMajor = parseInt(process.versions.node, 10);
-          if (nodeMajor < 20) {
-            process.stderr.write(
-              `Error: Interactive chat requires Node.js 20 or later (current: ${process.versions.node}).\n`,
-            );
-            process.exit(1);
-          }
-          const { ChatApp } = await import('./tui/ChatApp.js');
-          const { withFullScreen } = await import('fullscreen-ink');
-          const React = await import('react');
-          const fullscreen = withFullScreen(React.createElement(ChatApp, {
-            provider,
-            model: resolvedModel,
-            maxTokens: parseInt(opts.maxTokens, 10),
-            system: opts.system ?? session.system ?? undefined,
-            sessionId: session.id,
-            initialMessages,
-            initialConversation,
-            budget: budgetLimit,
-            autoRoute: opts.autoRoute,
-          }));
-          await fullscreen.start();
-          await fullscreen.waitUntilExit();
-        } finally {
-          closeDb(sessionDb);
-        }
-        return;
-      }
-
       if (message) {
         // One-shot mode: send message via unified tool loop
+        let provider: Provider;
+        try {
+          provider = resolveProvider();
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          process.stderr.write(`Error: ${msg}\n`);
+          process.exit(1);
+        }
+
+        const resolvedModel = resolveModelAlias(opts.model);
         await runToolLoop([{ role: 'user', content: message }], {
           model: resolvedModel,
           maxTokens: parseInt(opts.maxTokens, 10),
@@ -1122,29 +1025,11 @@ program
         });
         process.stdout.write('\n');
       } else {
-        // Interactive TUI mode
-        const nodeMajor = parseInt(process.versions.node, 10);
-        if (nodeMajor < 20) {
-          process.stderr.write(
-            `Error: Interactive chat requires Node.js 20 or later (current: ${process.versions.node}).\n` +
-            `The TUI uses ink v6 + React 19 which need Node 20+.\n` +
-            `Use 'vela chat "message"' for one-shot mode on Node 18+.\n`
-          );
-          process.exit(1);
-        }
-        const { ChatApp } = await import('./tui/ChatApp.js');
-        const { withFullScreen } = await import('fullscreen-ink');
-        const React = await import('react');
-        const fullscreen = withFullScreen(React.createElement(ChatApp, {
-          provider,
-          model: resolvedModel,
-          maxTokens: parseInt(opts.maxTokens, 10),
-          system: opts.system,
-          budget: budgetLimit,
-          autoRoute: opts.autoRoute,
-        }));
-        await fullscreen.start();
-        await fullscreen.waitUntilExit();
+        // No message — redirect to interactive TUI
+        process.stderr.write('Use `vela` for interactive chat (TUI mode).\n');
+        process.stderr.write('Use `vela chat "message"` for one-shot mode.\n');
+        process.stderr.write('Use `vela chat sessions` to list saved sessions.\n');
+        process.exit(0);
       }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -1153,4 +1038,18 @@ program
     }
   });
 
-program.parse();
+// ── Default TUI launch (no subcommand, TTY stdin) ──────────────────────────
+
+if (process.argv.length === 2 && process.stdin.isTTY) {
+  // Dynamic import to avoid loading TUI code for subcommand invocations
+  import('./tui2/app.js').then(({ VelaApp }) => {
+    const app = new VelaApp();
+    app.start();
+  }).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[Vela] Failed to start TUI: ${msg}\n`);
+    process.exit(1);
+  });
+} else {
+  program.parse();
+}

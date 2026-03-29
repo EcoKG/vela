@@ -29,10 +29,14 @@ export interface SendMessageOptions {
   model?: string;
   /** System prompt. */
   system?: string;
-  /** Maximum agentic turns (defaults to 1). */
+  /** Maximum agentic turns (defaults to 10). */
   maxTurns?: number;
   /** Streaming callback — invoked for each text chunk as it arrives. */
   onText?: (text: string) => void;
+  /** Called when a tool begins execution (first tool_progress per tool_use_id). */
+  onToolStart?: (toolName: string, toolId: string) => void;
+  /** Called when a tool finishes execution (tool_use_summary event). */
+  onToolDone?: (toolName: string, toolId: string, summary?: string) => void;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -83,8 +87,10 @@ export async function sendMessage(
   const {
     model = DEFAULT_MODEL,
     system,
-    maxTurns = 1,
+    maxTurns = 10,
     onText,
+    onToolStart,
+    onToolDone,
   } = options;
 
   // ── Dynamic import ────────────────────────────────────────
@@ -128,6 +134,7 @@ export async function sendMessage(
   let accumulatedText = '';
   let inputTokens = 0;
   let outputTokens = 0;
+  const seenToolUseIds = new Set<string>();
 
   try {
     const stream = queryFn({ prompt, options: queryOptions });
@@ -167,6 +174,21 @@ export async function sendMessage(
           accumulatedText = event.result;
           if (onText) onText(accumulatedText);
         }
+      }
+
+      // Tool progress: first occurrence per tool_use_id triggers onToolStart
+      if (event.type === 'tool_progress' && onToolStart) {
+        const toolId = event.tool_use_id ?? '';
+        if (toolId && !seenToolUseIds.has(toolId)) {
+          seenToolUseIds.add(toolId);
+          onToolStart(event.tool_name ?? 'unknown', toolId);
+        }
+      }
+
+      // Tool use summary: triggers onToolDone
+      if (event.type === 'tool_use_summary' && onToolDone) {
+        const toolId = event.tool_use_id ?? '';
+        onToolDone(event.tool_name ?? 'unknown', toolId, event.summary);
       }
     }
   } catch (err: unknown) {
