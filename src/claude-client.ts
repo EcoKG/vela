@@ -1,194 +1,87 @@
 /**
- * Claude streaming client module for Vela CLI.
+ * Claude client shim module for Vela CLI.
  *
- * Wraps the Anthropic SDK with streaming support and a tool_use loop skeleton.
- * Provides `createClaudeClient()` for instantiation and `sendMessage()` for
- * streaming conversations. When the model invokes tools (stop_reason: 'tool_use'),
- * the response is returned with ToolUseBlock content so the caller can execute
- * tools and continue the conversation loop.
+ * Backward-compatible façade that delegates to `./llm.ts` for actual
+ * LLM communication. Preserves the same exports so consumers
+ * (tool-engine, pipeline-orchestrator, context-manager, ChatApp, cli)
+ * continue to work without changes.
+ *
+ * The `client` argument in `sendMessage()` is accepted but ignored —
+ * all communication now goes through the Claude Code CLI SDK via llm.ts.
  */
-import Anthropic from '@anthropic-ai/sdk';
 import type {
   Message,
-  MessageParam,
-  ContentBlock,
-  ContentBlockParam,
-  RawMessageStreamEvent,
   ToolUseBlock,
   ToolUnion,
-  TextDelta,
-  InputJSONDelta,
+  ContentBlock,
+  ContentBlockParam,
 } from '@anthropic-ai/sdk/resources/messages/messages.js';
-import { DEFAULT_MODEL } from './models.js';
 
-// ── Public types ──────────────────────────────────────────────
+import {
+  sendMessage as llmSendMessage,
+} from './llm.js';
+import type {
+  SendMessageOptions as LlmSendMessageOptions,
+} from './llm.js';
 
-/** A conversation message passed to `sendMessage`. */
+// ── Public types (backward-compatible) ─────────────────────────
+
+/**
+ * A conversation message passed to `sendMessage`.
+ * Re-exported for backward compatibility — canonical source is llm.ts.
+ */
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string | ContentBlock[] | ContentBlockParam[];
 }
 
-/** Options for `sendMessage`. */
+/**
+ * Options for `sendMessage`.
+ *
+ * Extends the llm.ts options with fields that legacy consumers still pass
+ * (maxTokens, tools). These are accepted for signature compatibility but
+ * are not forwarded to the CLI SDK — the SDK manages its own token limits
+ * and tool definitions.
+ */
 export interface SendMessageOptions {
   /** Model to use (defaults to claude-sonnet-4-20250514). */
   model?: string;
-  /** Maximum tokens in the response. */
+  /** Maximum tokens in the response (accepted but not forwarded to CLI SDK). */
   maxTokens?: number;
   /** System prompt. */
   system?: string;
-  /** Tool definitions forwarded to the API when provided. */
-  tools?: ToolUnion[];
+  /** Maximum agentic turns (defaults to 1). */
+  maxTurns?: number;
   /** Streaming callback — invoked for each text chunk as it arrives. */
   onText?: (text: string) => void;
 }
 
-// ── Constants ─────────────────────────────────────────────────
-
-const DEFAULT_MAX_TOKENS = 4096;
-
-// ── Client factory ────────────────────────────────────────────
+// ── Streaming send (shim) ──────────────────────────────────────
 
 /**
- * Creates and returns an Anthropic SDK client instance.
- */
-export function createClaudeClient(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey });
-}
-
-// ── Streaming send ────────────────────────────────────────────
-
-/**
- * Sends a conversation to Claude with streaming support.
+ * Backward-compatible `sendMessage` that accepts a `client` arg
+ * for signature compatibility but delegates entirely to `llm.ts`.
  *
- * Iterates SSE events from the streaming response:
- * - `content_block_delta` with `text_delta` → invokes `options.onText`
- *
- * After the stream completes, returns the full `Message` object. If
- * `stop_reason === 'tool_use'`, the message's `content` array will
- * contain `ToolUseBlock` entries that the caller can execute before
- * continuing the conversation loop.
- *
- * @throws Re-throws Anthropic API errors after logging to stderr.
+ * @param _client  Ignored — kept for backward compat
+ * @param messages Conversation messages
+ * @param options  Model, system, onText callback, etc.
  */
 export async function sendMessage(
-  client: Anthropic,
+  _client: unknown,
   messages: ChatMessage[],
   options: SendMessageOptions = {},
 ): Promise<Message> {
-  const {
-    model = DEFAULT_MODEL,
-    maxTokens = DEFAULT_MAX_TOKENS,
-    system,
-    tools,
-    onText,
-  } = options;
-
-  try {
-    const stream = await client.messages.create({
-      model,
-      max_tokens: maxTokens,
-      messages: messages as MessageParam[],
-      stream: true,
-      ...(system ? { system } : {}),
-      ...(tools && tools.length > 0 ? { tools } : {}),
-    });
-
-    // Accumulate the final message from stream events
-    let finalMessage: Message | undefined;
-    const contentBlocks: ContentBlock[] = [];
-    let currentBlockIndex = -1;
-    // Accumulate input_json_delta partial JSON per block index
-    const inputJsonAccumulator = new Map<number, string>();
-
-    for await (const event of stream as AsyncIterable<RawMessageStreamEvent>) {
-      switch (event.type) {
-        case 'message_start':
-          finalMessage = event.message;
-          break;
-
-        case 'content_block_start':
-          currentBlockIndex = event.index;
-          contentBlocks[currentBlockIndex] = event.content_block;
-          break;
-
-        case 'content_block_delta':
-          if (
-            event.delta.type === 'text_delta' &&
-            onText
-          ) {
-            onText((event.delta as TextDelta).text);
-          }
-          // Accumulate text into the content block
-          if (event.delta.type === 'text_delta') {
-            const block = contentBlocks[event.index];
-            if (block && block.type === 'text') {
-              (block as { text: string }).text += (event.delta as TextDelta).text;
-            }
-          }
-          // Accumulate input_json_delta partial JSON for tool_use blocks
-          if (event.delta.type === 'input_json_delta') {
-            const partialJson = (event.delta as InputJSONDelta).partial_json;
-            const prev = inputJsonAccumulator.get(event.index) ?? '';
-            inputJsonAccumulator.set(event.index, prev + partialJson);
-          }
-          break;
-
-        case 'content_block_stop': {
-          // If we accumulated JSON for this block, parse and assign to tool_use input
-          const accumulatedJson = inputJsonAccumulator.get(event.index);
-          if (accumulatedJson !== undefined) {
-            const block = contentBlocks[event.index];
-            if (block && block.type === 'tool_use') {
-              try {
-                (block as ToolUseBlock).input = JSON.parse(accumulatedJson);
-              } catch {
-                // If partial JSON is malformed, keep the raw string as input
-                (block as ToolUseBlock).input = accumulatedJson;
-              }
-              inputJsonAccumulator.delete(event.index);
-            }
-          }
-          break;
-        }
-
-        case 'message_delta':
-          if (finalMessage) {
-            finalMessage.stop_reason = event.delta.stop_reason;
-            // Capture cumulative usage from message_delta (output_tokens is always present;
-            // input_tokens is nullable but useful when provided)
-            if (event.usage) {
-              finalMessage.usage = {
-                ...finalMessage.usage,
-                output_tokens: event.usage.output_tokens,
-                ...(event.usage.input_tokens != null
-                  ? { input_tokens: event.usage.input_tokens }
-                  : {}),
-              };
-            }
-          }
-          break;
-
-        // message_stop is a no-op for our purposes
-      }
-    }
-
-    if (!finalMessage) {
-      throw new Error('No message_start event received from stream');
-    }
-
-    // Replace the initial (empty) content with accumulated blocks
-    finalMessage.content = contentBlocks;
-
-    return finalMessage;
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`⛵ [Vela] Claude API error: ${msg}\n`);
-    throw error;
-  }
+  // Extract only the fields that llm.ts understands
+  const llmOptions: LlmSendMessageOptions = {
+    model: options.model,
+    system: options.system,
+    maxTurns: options.maxTurns,
+    onText: options.onText,
+  };
+  return llmSendMessage(messages, llmOptions);
 }
 
-// ── Tool use helpers ──────────────────────────────────────────
+// ── Tool use helpers (unchanged) ───────────────────────────────
 
 /**
  * Extracts ToolUseBlock entries from a Message's content.

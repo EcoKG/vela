@@ -4,7 +4,6 @@ import { useScreenSize } from 'fullscreen-ink';
 
 // ── Constants ─────────────────────────────────────────────────
 
-const MAX_CONTENT_WIDTH = 120;
 const DEFAULT_ROWS = 24;
 
 // ── Props ─────────────────────────────────────────────────────
@@ -20,9 +19,9 @@ export interface FullscreenLayoutProps {
   sidebar?: React.ReactNode;
   /** Whether the sidebar is visible. Default: false */
   sidebarVisible?: boolean;
-  /** Fixed height for the header region (rows). Default: 4 */
+  /** Fixed height for the header region (rows). Default: 3 */
   headerHeight?: number;
-  /** Fixed height for the input region (rows). Default: 2 */
+  /** Fixed height for the input region (rows). Default: 3 */
   inputHeight?: number;
 }
 
@@ -42,13 +41,13 @@ export interface LayoutDimensions {
 }
 
 /** Minimum terminal width required to show the sidebar. */
-const MIN_SIDEBAR_COLS = 60;
+const MIN_SIDEBAR_COLS = 80;
 /** Default sidebar width in columns. */
-const DEFAULT_SIDEBAR_WIDTH = 30;
+const DEFAULT_SIDEBAR_WIDTH = 34;
 
 /**
  * Pure function that computes layout dimensions from screen size and config.
- * Exported for testability — the component uses this internally.
+ * Uses the full terminal width — no max-width cap.
  */
 export function computeLayout(
   columns: number | undefined,
@@ -58,17 +57,17 @@ export function computeLayout(
   sidebarVisible?: boolean,
   sidebarWidth?: number,
 ): LayoutDimensions {
-  const effectiveColumns = columns ?? MAX_CONTENT_WIDTH;
+  const effectiveColumns = columns ?? 120;
   const effectiveRows = rows ?? DEFAULT_ROWS;
 
-  const contentWidth = Math.min(effectiveColumns, MAX_CONTENT_WIDTH);
-  const marginLeft = Math.floor((effectiveColumns - contentWidth) / 2);
+  // Use full terminal width — no max-width restriction
+  const contentWidth = effectiveColumns;
+  const marginLeft = 0;
   const bodyHeight = Math.max(effectiveRows - headerHeight - inputHeight, 1);
 
   // Sidebar: show only when explicitly visible AND terminal is wide enough
-  const effectiveSidebarWidth = DEFAULT_SIDEBAR_WIDTH;
   const showSidebar = sidebarVisible === true && effectiveColumns >= MIN_SIDEBAR_COLS;
-  const actualSidebarWidth = showSidebar ? (sidebarWidth ?? effectiveSidebarWidth) : 0;
+  const actualSidebarWidth = showSidebar ? (sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH) : 0;
   const mainWidth = contentWidth - actualSidebarWidth;
 
   return {
@@ -87,8 +86,7 @@ export function computeLayout(
 
 /**
  * 3-panel fullscreen layout with fixed header/input and flexible body.
- * Centers content within a max-width of 120 columns.
- * Designed to be used inside fullscreen-ink's FullScreenBox or withFullScreen.
+ * Uses the full terminal width for maximum space utilization.
  */
 export function FullscreenLayout({
   header,
@@ -96,12 +94,11 @@ export function FullscreenLayout({
   input,
   sidebar,
   sidebarVisible = false,
-  headerHeight: headerH = 4,
-  inputHeight: inputH = 2,
+  headerHeight: headerH = 3,
+  inputHeight: inputH = 3,
 }: FullscreenLayoutProps) {
   const { width: columns, height: rows } = useScreenSize();
 
-  // rows may be undefined in ink-testing-library — computeLayout handles the fallback
   const layout = computeLayout(
     columns,
     rows,
@@ -116,7 +113,6 @@ export function FullscreenLayout({
     <Box
       flexDirection="column"
       height={layout.totalRows}
-      marginLeft={layout.marginLeft}
       width={layout.contentWidth}
     >
       {/* Header region — fixed height */}
@@ -128,7 +124,7 @@ export function FullscreenLayout({
       <Box height={layout.bodyHeight} overflow="hidden" flexGrow={1}>
         {showSidebar ? (
           <Box flexDirection="row" width={layout.contentWidth}>
-            <Box width={layout.mainWidth}>{body}</Box>
+            <Box width={layout.mainWidth} overflow="hidden">{body}</Box>
             <Box width={layout.sidebarWidth}>{sidebar}</Box>
           </Box>
         ) : (

@@ -53,10 +53,8 @@ import { resolveProvider } from './provider.js';
 import type { Provider } from './provider.js';
 import { resolveModelAlias, DEFAULT_MODEL } from './models.js';
 import { createInterface } from 'node:readline';
-import { createClaudeClient } from './claude-client.js';
 import type { ChatMessage } from './claude-client.js';
 import { runToolLoop } from './tool-engine.js';
-import { sendMessageViaCli } from './claude-code-adapter.js';
 import {
   openSessionDb,
   getSession,
@@ -1115,26 +1113,13 @@ program
       }
 
       if (message) {
-        // One-shot mode: send message and print response
-        if (provider.type === 'api') {
-          const client = createClaudeClient(provider.apiKey);
-          await runToolLoop(client, [{ role: 'user', content: message }], {
-            model: resolvedModel,
-            maxTokens: parseInt(opts.maxTokens, 10),
-            system: opts.system,
-            onText: (text) => process.stdout.write(text),
-          });
-        } else {
-          // CLI provider — send via Claude Code CLI, no tool loop
-          await sendMessageViaCli(
-            [{ role: 'user', content: message }],
-            {
-              model: resolvedModel,
-              system: opts.system,
-              onText: (text) => process.stdout.write(text),
-            },
-          );
-        }
+        // One-shot mode: send message via unified tool loop
+        await runToolLoop([{ role: 'user', content: message }], {
+          model: resolvedModel,
+          maxTokens: parseInt(opts.maxTokens, 10),
+          system: opts.system,
+          onText: (text) => process.stdout.write(text),
+        });
         process.stdout.write('\n');
       } else {
         // Interactive TUI mode

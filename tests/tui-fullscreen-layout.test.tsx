@@ -32,10 +32,10 @@ function setScreenSize(width: number, height?: number) {
 // ── computeLayout (pure function tests) ────────────────────────
 
 describe('computeLayout', () => {
-  it('caps content width at 120 when columns > 120', () => {
+  it('uses full width regardless of terminal width', () => {
     const layout = computeLayout(200, 40, 4, 2);
-    expect(layout.contentWidth).toBe(120);
-    expect(layout.marginLeft).toBe(40); // (200 - 120) / 2
+    expect(layout.contentWidth).toBe(200);
+    expect(layout.marginLeft).toBe(0);
   });
 
   it('uses full width when columns <= 120', () => {
@@ -75,16 +75,16 @@ describe('computeLayout', () => {
 
   it('centers content with odd margin', () => {
     const layout = computeLayout(121, 24, 4, 2);
-    expect(layout.contentWidth).toBe(120);
-    expect(layout.marginLeft).toBe(0); // floor((121 - 120) / 2) = 0
+    expect(layout.contentWidth).toBe(121);
+    expect(layout.marginLeft).toBe(0);
   });
 
   // ── Sidebar layout tests ──
 
   it('computes sidebar width when visible and terminal wide enough', () => {
     const layout = computeLayout(100, 24, 4, 2, true);
-    expect(layout.sidebarWidth).toBe(30);
-    expect(layout.mainWidth).toBe(70); // 100 - 30
+    expect(layout.sidebarWidth).toBe(34);
+    expect(layout.mainWidth).toBe(66); // 100 - 34
   });
 
   it('sets sidebar width to 0 when hidden', () => {
@@ -93,16 +93,16 @@ describe('computeLayout', () => {
     expect(layout.mainWidth).toBe(100);
   });
 
-  it('auto-hides sidebar when terminal is narrower than 60 cols', () => {
-    const layout = computeLayout(59, 24, 4, 2, true);
+  it('auto-hides sidebar when terminal is narrower than 80 cols', () => {
+    const layout = computeLayout(79, 24, 4, 2, true);
     expect(layout.sidebarWidth).toBe(0);
-    expect(layout.mainWidth).toBe(59);
+    expect(layout.mainWidth).toBe(79);
   });
 
-  it('shows sidebar at exactly 60 cols', () => {
-    const layout = computeLayout(60, 24, 4, 2, true);
-    expect(layout.sidebarWidth).toBe(30);
-    expect(layout.mainWidth).toBe(30); // 60 - 30
+  it('shows sidebar at exactly 80 cols', () => {
+    const layout = computeLayout(80, 24, 4, 2, true);
+    expect(layout.sidebarWidth).toBe(34);
+    expect(layout.mainWidth).toBe(46); // 80 - 34
   });
 
   it('mainWidth equals contentWidth when sidebar is not requested', () => {
@@ -247,7 +247,7 @@ describe('FullscreenLayout', () => {
     expect(frame).not.toContain('SIDEBAR');
   });
 
-  it('auto-hides sidebar when terminal is narrower than 60 cols', () => {
+  it('auto-hides sidebar when terminal is narrower than 80 cols', () => {
     setScreenSize(50, 24);
     const { lastFrame } = render(
       <FullscreenLayout

@@ -1,21 +1,39 @@
 /**
- * Claude Code CLI streaming adapter.
+ * Unified LLM communication module for Vela.
  *
- * Uses `@anthropic-ai/claude-agent-sdk` query() API to send messages
- * through the locally installed Claude Code CLI. This leverages Claude
- * Code's OAuth session — no API key needed.
+ * Wraps `@anthropic-ai/claude-agent-sdk` query() as the single
+ * entry point for all LLM calls. Streams SDK events, accumulates
+ * text, and returns an Anthropic `Message`-compatible object.
  *
  * SDK v0.2.x API:
- *   query({ prompt, options? }) → Query (AsyncGenerator<SDKMessage>)
- *   SDKMessage = SDKAssistantMessage | SDKResultMessage | ...
+ *   query({ prompt, options? }) → AsyncGenerator<SDKMessage>
  *   SDKAssistantMessage.message = BetaMessage (Anthropic API format)
  *   SDKResultMessage.result = final text, .usage = token counts
  */
 import type { Message } from '@anthropic-ai/sdk/resources/messages/messages.js';
-import type { ChatMessage } from './claude-client.js';
-import type { SendMessageOptions } from './claude-client.js';
+import type { ContentBlock, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages/messages.js';
 import { getClaudePath } from './claude-code-readiness.js';
 import { DEFAULT_MODEL } from './models.js';
+
+// ── Public types ──────────────────────────────────────────────
+
+/** A conversation message passed to `sendMessage`. */
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string | ContentBlock[] | ContentBlockParam[];
+}
+
+/** Options for `sendMessage`. */
+export interface SendMessageOptions {
+  /** Model to use (defaults to claude-sonnet-4-20250514). */
+  model?: string;
+  /** System prompt. */
+  system?: string;
+  /** Maximum agentic turns (defaults to 1). */
+  maxTurns?: number;
+  /** Streaming callback — invoked for each text chunk as it arrives. */
+  onText?: (text: string) => void;
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -50,19 +68,22 @@ function extractLastUserPrompt(messages: ChatMessage[]): string {
  * Sends a message to Claude via the Claude Code CLI SDK.
  *
  * Dynamically imports `@anthropic-ai/claude-agent-sdk` to avoid a
- * hard compile-time dependency.
+ * hard compile-time dependency. Extracts the last user message,
+ * streams SDK events, and returns an Anthropic `Message`-compatible
+ * object.
  *
  * @param messages  Conversation history (only last user message is sent)
- * @param options   Standard Vela send options (model, system, onText, etc.)
+ * @param options   Model, system prompt, maxTurns, onText callback
  * @returns         Anthropic SDK `Message`-compatible object
  */
-export async function sendMessageViaCli(
+export async function sendMessage(
   messages: ChatMessage[],
   options: SendMessageOptions = {},
 ): Promise<Message> {
   const {
     model = DEFAULT_MODEL,
     system,
+    maxTurns = 1,
     onText,
   } = options;
 
@@ -88,13 +109,12 @@ export async function sendMessageViaCli(
   const prompt = extractLastUserPrompt(messages);
   const claudePath = getClaudePath();
 
-  // Build options matching SDK v0.2.x Options type
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const queryOptions: Record<string, any> = {
     model,
     permissionMode: 'bypassPermissions',
     allowDangerouslySkipPermissions: true,
-    maxTurns: 1,
+    maxTurns,
   };
 
   if (system) {
@@ -119,7 +139,7 @@ export async function sendMessageViaCli(
         if (betaMsg.content && Array.isArray(betaMsg.content)) {
           for (const block of betaMsg.content) {
             if (block.type === 'text' && block.text) {
-              // Only emit new text (BetaMessage may repeat content)
+              // Emit only new text via diffing (K017-style delta)
               const newText = block.text.slice(accumulatedText.length);
               if (newText) {
                 accumulatedText += newText;
@@ -137,11 +157,12 @@ export async function sendMessageViaCli(
 
       // SDKResultMessage: { type: 'result', subtype: 'success', result: string, usage: ... }
       if (event.type === 'result') {
+        // Result usage overrides assistant usage (K017)
         if (event.usage) {
           inputTokens = event.usage.input_tokens ?? inputTokens;
           outputTokens = event.usage.output_tokens ?? outputTokens;
         }
-        // If we didn't get text from streaming, use result text
+        // Fallback: if no text was streamed, use result text
         if (!accumulatedText && event.result) {
           accumulatedText = event.result;
           if (onText) onText(accumulatedText);
@@ -150,8 +171,8 @@ export async function sendMessageViaCli(
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`⛵ [Vela] Claude Code CLI query failed: ${msg}\n`);
-    throw new Error(`Claude Code CLI query failed: ${msg}`);
+    process.stderr.write(`⛵ [Vela] LLM query failed: ${msg}\n`);
+    throw new Error(`LLM query failed: ${msg}`);
   }
 
   // ── Build Message ─────────────────────────────────────────
@@ -161,7 +182,7 @@ export async function sendMessageViaCli(
   }
 
   const message: Message = {
-    id: `cli-${Date.now()}`,
+    id: `vela-${Date.now()}`,
     type: 'message',
     role: 'assistant',
     model,

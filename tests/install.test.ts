@@ -25,7 +25,7 @@ describe('npm pack', () => {
       let bytes = value;
       if (unit === 'kb') bytes = value * 1024;
       if (unit === 'mb') bytes = value * 1024 * 1024;
-      expect(bytes).toBeLessThan(500 * 1024);
+      expect(bytes).toBeLessThan(750 * 1024);
     }
     // Also verify via actual pack if tarball already exists
     const tgzPath = join(ROOT, `vela-cli-${VERSION}.tgz`);

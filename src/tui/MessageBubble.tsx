@@ -12,22 +12,35 @@ const ROLE_CONFIG = {
 
 export function MessageBubble({ message }: { message: Message }) {
   const config = ROLE_CONFIG[message.role];
+  const isUser = message.role === 'user';
 
   return (
     <Box
-      borderStyle="round"
-      borderColor={config.borderColor}
-      paddingX={1}
       flexDirection="column"
-      marginBottom={1}
+      marginBottom={0}
+      paddingLeft={isUser ? 0 : 0}
     >
-      <Text color={config.labelColor} bold>
-        {config.label}
-      </Text>
-      <Text>{message.content}</Text>
+      {/* Role label */}
+      <Box>
+        <Text color={config.labelColor} bold>
+          {config.label}
+        </Text>
+      </Box>
+
+      {/* Content — indented under label */}
+      <Box paddingLeft={1}>
+        <Text wrap="wrap" color={theme.text}>{message.content}</Text>
+      </Box>
+
+      {/* Tool calls */}
       {message.toolCalls?.map((tc, i) => (
-        <ToolCallBlock key={i} toolCall={tc} />
+        <Box key={i} paddingLeft={1}>
+          <ToolCallBlock toolCall={tc} />
+        </Box>
       ))}
+
+      {/* Separator line */}
+      <Text color={theme.dim}>{''}</Text>
     </Box>
   );
 }

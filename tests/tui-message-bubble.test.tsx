@@ -49,24 +49,23 @@ describe('MessageBubble', () => {
     expect(frame).toContain('file contents');
   });
 
-  it('renders bordered card (round border style)', () => {
+  it('renders message with role label and content', () => {
     const msg: Message = { role: 'user', content: 'Test' };
     const { lastFrame } = render(<MessageBubble message={msg} />);
     const frame = lastFrame()!;
-    // Round border uses ╭ and ╮ for top corners
-    expect(frame).toContain('╭');
-    expect(frame).toContain('╮');
+    expect(frame).toContain('You');
+    expect(frame).toContain('Test');
   });
 });
 
 // ── ToolCallBlock ──────────────────────────────────────────────
 
 describe('ToolCallBlock', () => {
-  it('renders running state with tool name and 🔧 icon', () => {
+  it('renders running state with tool name and ⏳ icon', () => {
     const tc: ToolCallInfo = { name: 'Read', status: 'running' };
     const { lastFrame } = render(<ToolCallBlock toolCall={tc} />);
     const frame = lastFrame()!;
-    expect(frame).toContain('🔧');
+    expect(frame).toContain('⏳');
     expect(frame).toContain('Read');
   });
 
@@ -78,7 +77,7 @@ describe('ToolCallBlock', () => {
     };
     const { lastFrame } = render(<ToolCallBlock toolCall={tc} />);
     const frame = lastFrame()!;
-    expect(frame).toContain('✅');
+    expect(frame).toContain('✓');
     expect(frame).toContain('Write');
     expect(frame).toContain('File written successfully');
   });
@@ -91,12 +90,12 @@ describe('ToolCallBlock', () => {
     };
     const { lastFrame } = render(<ToolCallBlock toolCall={tc} />);
     const frame = lastFrame()!;
-    expect(frame).toContain('⛔');
+    expect(frame).toContain('✗');
     expect(frame).toContain('Write');
     expect(frame).toContain('VK-04');
   });
 
-  it('truncates result to 3 lines when long', () => {
+  it('shows first line of result, truncated for long text', () => {
     const longResult = 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5';
     const tc: ToolCallInfo = {
       name: 'Read',
@@ -106,8 +105,7 @@ describe('ToolCallBlock', () => {
     const { lastFrame } = render(<ToolCallBlock toolCall={tc} />);
     const frame = lastFrame()!;
     expect(frame).toContain('Line 1');
-    expect(frame).toContain('Line 3');
-    expect(frame).toContain('…');
+    // Only first line is shown in compact view
     expect(frame).not.toContain('Line 4');
   });
 

@@ -5,7 +5,6 @@
  * and fresh context construction for long-running chat sessions. Used by
  * the /fresh command and automatic context-reset triggers.
  */
-import type Anthropic from '@anthropic-ai/sdk';
 import type {
   ContentBlock,
   ContentBlockParam,
@@ -121,7 +120,6 @@ export function buildSummarizationPrompt(messages: ChatMessage[]): string {
  * has fewer than 2 messages (nothing meaningful to summarize).
  */
 export async function summarizeConversation(
-  client: Anthropic,
   messages: ChatMessage[],
   model?: string,
 ): Promise<string> {
@@ -132,7 +130,7 @@ export async function summarizeConversation(
   const prompt = buildSummarizationPrompt(messages);
   const summarizationModel = model ?? MODEL_ALIASES['haiku'];
 
-  const result = await sendMessage(client, [{ role: 'user', content: prompt }], {
+  const result = await sendMessage(null, [{ role: 'user', content: prompt }], {
     model: summarizationModel,
     system: SUMMARIZATION_SYSTEM,
     maxTokens: 2048,

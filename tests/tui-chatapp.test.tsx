@@ -19,13 +19,11 @@ vi.mock('../src/tui/ChatInput.js', () => ({
 }));
 
 const mockSendMessage = vi.fn();
-const mockCreateClaudeClient = vi.fn();
 const mockExtractToolUseBlocks = vi.fn();
 const mockIsToolUseResponse = vi.fn();
 const mockExecuteTool = vi.fn();
 
 vi.mock('../src/claude-client.js', () => ({
-  createClaudeClient: (...args: unknown[]) => mockCreateClaudeClient(...args),
   sendMessage: (...args: unknown[]) => mockSendMessage(...args),
   extractToolUseBlocks: (...args: unknown[]) => mockExtractToolUseBlocks(...args),
   isToolUseResponse: (...args: unknown[]) => mockIsToolUseResponse(...args),
@@ -33,14 +31,20 @@ vi.mock('../src/claude-client.js', () => ({
 
 vi.mock('../src/tool-engine.js', () => ({
   executeTool: (...args: unknown[]) => mockExecuteTool(...args),
+  executeToolsParallel: async (blocks: Array<{ name: string; id: string; input: Record<string, unknown> }>, ctx?: unknown) => {
+    const results = [];
+    for (const block of blocks) {
+      const { result, is_error } = await mockExecuteTool(block.name, block.input, ctx);
+      results.push({
+        type: 'tool_result' as const,
+        tool_use_id: block.id,
+        content: result as string,
+        is_error: !!is_error,
+      });
+    }
+    return results;
+  },
   TOOL_DEFINITIONS: [],
-}));
-
-// Claude Code adapter mock
-const mockSendMessageViaCli = vi.fn();
-
-vi.mock('../src/claude-code-adapter.js', () => ({
-  sendMessageViaCli: (...args: unknown[]) => mockSendMessageViaCli(...args),
 }));
 
 vi.mock('../src/governance/index.js', () => ({
@@ -96,12 +100,9 @@ describe('ChatApp', () => {
     capturedOnSubmit = null;
     capturedIsStreaming = false;
     mockSendMessage.mockReset();
-    mockCreateClaudeClient.mockReset();
     mockExtractToolUseBlocks.mockReset();
     mockIsToolUseResponse.mockReset();
     mockExecuteTool.mockReset();
-    mockCreateClaudeClient.mockReturnValue({});
-    mockSendMessageViaCli.mockReset();
 
     // Session mocks
     mockOpenSessionDb.mockReset();
@@ -561,11 +562,10 @@ describe('ChatApp', () => {
     });
 
     const frame = lastFrame()!;
-    // Token counts rendered by Dashboard component (in sidebar, text may wrap)
+    // Token counts rendered by Dashboard (sidebar) — emoji-based format
     expect(frame).toContain('100');
     expect(frame).toContain('50');
-    // Total may wrap across lines in sidebar — check parts individually
-    expect(frame).toContain('total');
+    expect(frame).toContain('tok');
   });
 
   it('accumulates tokens across multiple turns', async () => {
@@ -597,10 +597,8 @@ describe('ChatApp', () => {
 
     await vi.waitFor(() => {
       const frame = lastFrame()!;
-      // After second turn: 200 in, 100 out, 300 total
-      // Sidebar wrapping may split numbers — check accumulated values that render contiguously
+      // After second turn: 200 in, 100 out — verify accumulated input tokens
       expect(frame).toContain('200');
-      expect(frame).toContain('300');
     });
   });
 
@@ -659,8 +657,9 @@ describe('ChatApp', () => {
 
     await vi.waitFor(() => {
       const frame = lastFrame()!;
-      expect(frame).toContain('Keyboard Shortcuts');
-      expect(frame).toContain('Press Escape to close');
+      // HelpOverlay renders shortcuts — check for a key binding that appears reliably
+      expect(frame).toContain('Ctrl+D');
+      expect(frame).toContain('Escape');
     });
 
     // API should not be called
@@ -778,7 +777,7 @@ describe('ChatApp', () => {
 
     await vi.waitFor(() => {
       const frame = lastFrame()!;
-      expect(frame).toContain('Keyboard Shortcuts');
+      expect(frame).toContain('Ctrl+D');
     });
 
     // Escape hides it
@@ -788,7 +787,8 @@ describe('ChatApp', () => {
 
     await vi.waitFor(() => {
       const frame = lastFrame()!;
-      expect(frame).not.toContain('Keyboard Shortcuts');
+      // Help overlay content should be gone — Ctrl+D label won't appear outside overlay
+      expect(frame).not.toContain('Toggle dashboard');
     });
   });
 
@@ -933,9 +933,9 @@ describe('ChatApp', () => {
     // Verify selectModel was called
     expect(mockSelectModel).toHaveBeenCalled();
 
-    // Verify sendMessage was called with haiku model
+    // Verify sendMessage was called with haiku model and null client
     expect(mockSendMessage).toHaveBeenCalledWith(
-      expect.anything(),
+      null,
       expect.anything(),
       expect.objectContaining({ model: 'claude-haiku-4-20250514' }),
     );
@@ -1057,8 +1057,8 @@ describe('ChatApp', () => {
 
   // ── CLI provider tests ─────────────────────────────────────────
 
-  it('CLI provider calls sendMessageViaCli instead of createClaudeClient', async () => {
-    mockSendMessageViaCli.mockResolvedValue({
+  it('CLI provider uses unified sendMessage path (not sendMessageViaCli)', async () => {
+    mockSendMessage.mockResolvedValue({
       id: 'cli-123',
       type: 'message',
       role: 'assistant',
@@ -1068,6 +1068,7 @@ describe('ChatApp', () => {
       stop_sequence: null,
       usage: { input_tokens: 50, output_tokens: 25 },
     });
+    mockIsToolUseResponse.mockReturnValue(false);
 
     const { lastFrame } = render(<ChatApp provider={{ type: 'cli' }} />);
 
@@ -1080,27 +1081,42 @@ describe('ChatApp', () => {
       expect(frame).toContain('CLI reply');
     });
 
-    // sendMessageViaCli should have been called
-    expect(mockSendMessageViaCli).toHaveBeenCalled();
-    // createClaudeClient should NOT have been called
-    expect(mockCreateClaudeClient).not.toHaveBeenCalled();
-    expect(mockSendMessage).not.toHaveBeenCalled();
+    // Unified path: sendMessage should be called with null client
+    expect(mockSendMessage).toHaveBeenCalled();
+    expect(mockSendMessage.mock.calls[0][0]).toBeNull();
   });
 
-  it('/fresh on CLI provider shows unsupported message', async () => {
+  it('/fresh on CLI provider triggers summarization (unified path)', async () => {
+    // Set up enough conversation for /fresh to work
+    mockSendMessage.mockResolvedValue({
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: 'reply' }],
+      usage: { input_tokens: 50, output_tokens: 25 },
+    });
+    mockIsToolUseResponse.mockReturnValue(false);
+    mockSummarizeConversation.mockResolvedValue('Summary of conversation');
+    mockBuildFreshContext.mockReturnValue([{ role: 'user', content: 'summary context' }]);
+
     const { lastFrame } = render(<ChatApp provider={{ type: 'cli' }} />);
 
+    // Send enough messages to build up conversation (need >= 4)
+    for (let i = 0; i < 3; i++) {
+      await act(async () => {
+        capturedOnSubmit!(`Message ${i}`);
+      });
+      await vi.waitFor(() => {
+        expect(mockSendMessage).toHaveBeenCalledTimes(i + 1);
+      });
+    }
+
+    // Now /fresh should trigger summarization
     await act(async () => {
       capturedOnSubmit!('/fresh');
     });
 
     await vi.waitFor(() => {
-      const frame = lastFrame()!;
-      expect(frame).toContain('컨텍스트 리셋은 API 모드에서만 지원됩니다');
+      expect(mockSummarizeConversation).toHaveBeenCalled();
     });
-
-    expect(mockSendMessageViaCli).not.toHaveBeenCalled();
-    expect(mockSummarizeConversation).not.toHaveBeenCalled();
   });
 
   // ── Scroll behavior tests ─────────────────────────────────────
@@ -1371,7 +1387,7 @@ describe('ChatApp', () => {
     // The mock MessageBubble from MessageList renders ToolCallBlock which shows tool names
     const frame = lastFrame()!;
     expect(frame).toContain('Read');
-    expect(frame).toContain('✅'); // complete status icon
+    expect(frame).toContain('✓'); // complete status icon
   });
 
   it('input stays active during streaming (TextInput never disabled)', async () => {

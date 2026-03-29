@@ -1,17 +1,20 @@
 /**
  * Provider resolution module.
  *
- * Determines the best available provider for chat:
- *   1. API key via resolveApiKey() → { type: 'api', apiKey }
- *   2. Claude Code CLI via isClaudeCodeReady() → { type: 'cli' }
- *   3. Throws if neither is available
+ * Returns a CLI provider backed by Claude Code CLI.
+ * The API provider path has been removed — all communication
+ * goes through the Claude Code CLI SDK via llm.ts.
+ *
+ * The ApiProvider type is kept as an export for backward compatibility
+ * with consumers that reference Provider union type checks
+ * (cli.ts, ChatApp.tsx). Those `type === 'api'` branches are now
+ * dead code that will be removed in a future cleanup slice.
  */
-import { resolveApiKey } from './auth.js';
 import { isClaudeCodeReady } from './claude-code-readiness.js';
 
 // ─── Types ─────────────────────────────────────────────────
 
-/** API key provider — direct Anthropic API access */
+/** @deprecated API provider path removed — kept for type compatibility */
 export interface ApiProvider {
   type: 'api';
   apiKey: string;
@@ -22,30 +25,29 @@ export interface CliProvider {
   type: 'cli';
 }
 
-/** Discriminated union of available providers */
+/**
+ * Provider type.
+ *
+ * In practice only CliProvider is returned by `resolveProvider()`.
+ * ApiProvider is retained in the union so downstream type checks
+ * (`provider.type === 'api'`) continue to compile.
+ */
 export type Provider = ApiProvider | CliProvider;
 
 // ─── Public API ────────────────────────────────────────────
 
 /**
- * Resolves the best available provider.
+ * Resolves the available provider.
  *
- * Priority:
- *   1. API key (env var or profile) → ApiProvider
- *   2. Claude Code CLI installed → CliProvider
- *   3. Throws with a descriptive message
+ * Returns a CLI provider when Claude Code is ready.
+ * Throws if Claude Code CLI is not available.
  */
 export function resolveProvider(): Provider {
-  const apiKey = resolveApiKey();
-  if (apiKey) {
-    return { type: 'api', apiKey };
-  }
-
   if (isClaudeCodeReady()) {
     return { type: 'cli' };
   }
 
   throw new Error(
-    'No API key found and Claude Code CLI is not available. Set ANTHROPIC_API_KEY or install Claude Code CLI.',
+    'Claude Code CLI is not available. Install Claude Code CLI to use Vela.',
   );
 }

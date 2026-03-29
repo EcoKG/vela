@@ -1,28 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type {
   Message,
-  RawMessageStreamEvent,
-  RawMessageStartEvent,
-  RawContentBlockStartEvent,
-  RawContentBlockDeltaEvent,
-  RawMessageDeltaEvent,
-  RawMessageStopEvent,
-  RawContentBlockStopEvent,
   TextBlock,
 } from '@anthropic-ai/sdk/resources/messages/messages.js';
-
-// ── Mock Anthropic SDK (same pattern as claude-client.test.ts) ──
-
-const mockCreate = vi.fn();
-
-vi.mock('@anthropic-ai/sdk', () => {
-  return {
-    default: class MockAnthropic {
-      messages = { create: mockCreate };
-      constructor(_opts: unknown) {}
-    },
-  };
-});
 
 // ── Mock sendMessage from claude-client ──
 
@@ -44,7 +24,6 @@ import {
   summarizeConversation,
   buildFreshContext,
 } from '../src/context-manager.js';
-import { createClaudeClient } from '../src/claude-client.js';
 import { MODEL_ALIASES } from '../src/models.js';
 import type { ChatMessage } from '../src/claude-client.js';
 
@@ -231,8 +210,7 @@ describe('summarizeConversation', () => {
   });
 
   it('returns empty string for fewer than 2 messages without API call', async () => {
-    const client = createClaudeClient('sk-test');
-    const result = await summarizeConversation(client, [
+    const result = await summarizeConversation([
       { role: 'user', content: 'hi' },
     ]);
     expect(result).toBe('');
@@ -240,8 +218,7 @@ describe('summarizeConversation', () => {
   });
 
   it('returns empty string for zero messages', async () => {
-    const client = createClaudeClient('sk-test');
-    const result = await summarizeConversation(client, []);
+    const result = await summarizeConversation([]);
     expect(result).toBe('');
     expect(mockSendMessage).not.toHaveBeenCalled();
   });
@@ -250,12 +227,11 @@ describe('summarizeConversation', () => {
     const summaryText = 'Summary: user asked about math.';
     mockSendMessage.mockResolvedValue(makeTextMessage(summaryText));
 
-    const client = createClaudeClient('sk-test');
     const messages: ChatMessage[] = [
       { role: 'user', content: 'What is 2+2?' },
       { role: 'assistant', content: '4' },
     ];
-    const result = await summarizeConversation(client, messages);
+    const result = await summarizeConversation(messages);
 
     expect(result).toBe(summaryText);
     expect(mockSendMessage).toHaveBeenCalledOnce();
@@ -271,12 +247,11 @@ describe('summarizeConversation', () => {
   it('uses custom model when provided', async () => {
     mockSendMessage.mockResolvedValue(makeTextMessage('Custom summary'));
 
-    const client = createClaudeClient('sk-test');
     const messages: ChatMessage[] = [
       { role: 'user', content: 'a' },
       { role: 'assistant', content: 'b' },
     ];
-    await summarizeConversation(client, messages, 'claude-sonnet-4-20250514');
+    await summarizeConversation(messages, 'claude-sonnet-4-20250514');
 
     const callArgs = mockSendMessage.mock.calls[0];
     expect(callArgs[2].model).toBe('claude-sonnet-4-20250514');

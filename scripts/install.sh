@@ -14,11 +14,16 @@ VELA_VERSION="${VELA_VERSION:-0.3.0}"
 # Argument parsing
 # ---------------------------------------------------------------------------
 DRY_RUN=0
+SKIP_NEXT=0
 for arg in "$@"; do
+  if [ "$SKIP_NEXT" -eq 1 ]; then
+    SKIP_NEXT=0
+    continue
+  fi
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --version)
-      # handled below via shift pattern
+      SKIP_NEXT=1
       ;;
     --help|-h)
       printf "Usage: install.sh [--dry-run] [--version <ver>] [--help]\n"
@@ -31,7 +36,8 @@ for arg in "$@"; do
       exit 0
       ;;
     *)
-      # Check if previous arg was --version
+      printf 'Error: unknown argument: %s\n' "$arg" >&2
+      exit 1
       ;;
   esac
 done

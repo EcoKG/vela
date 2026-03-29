@@ -5,16 +5,17 @@
  * compatible with the Anthropic SDK's Tool type, plus executor functions
  * that perform real filesystem and shell operations.
  */
-import Anthropic from '@anthropic-ai/sdk';
 import type {
   Tool,
   Message,
   ToolResultBlockParam,
+  ToolUseBlock,
   ContentBlockParam,
 } from '@anthropic-ai/sdk/resources/messages/messages.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
+import type { ChildProcess } from 'child_process';
 import {
   sendMessage,
   extractToolUseBlocks,
@@ -137,6 +138,56 @@ export const TOOL_DEFINITIONS: Tool[] = [
         },
       },
       required: ['command'],
+    },
+  },
+  {
+    name: 'AsyncBash',
+    description:
+      'Execute a bash command in the background. Returns a job ID immediately. ' +
+      'Use BashJobStatus to check progress and BashJobKill to terminate.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        command: {
+          type: 'string',
+          description: 'Bash command to execute in the background.',
+        },
+        timeout: {
+          type: 'number',
+          description: 'Timeout in seconds. The job is killed after this. Defaults to 300 (5 minutes).',
+        },
+      },
+      required: ['command'],
+    },
+  },
+  {
+    name: 'BashJobStatus',
+    description:
+      'Check the status and output of a background job started with AsyncBash.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        jobId: {
+          type: 'string',
+          description: 'Job ID returned by AsyncBash.',
+        },
+      },
+      required: ['jobId'],
+    },
+  },
+  {
+    name: 'BashJobKill',
+    description:
+      'Terminate a background job started with AsyncBash.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        jobId: {
+          type: 'string',
+          description: 'Job ID returned by AsyncBash.',
+        },
+      },
+      required: ['jobId'],
     },
   },
 ];
@@ -287,6 +338,175 @@ export function executeBash(input: {
   }
 }
 
+// ── AsyncBash job management ──────────────────────────────────
+
+/** Default timeout for async bash jobs in milliseconds. */
+const DEFAULT_ASYNC_BASH_TIMEOUT_MS = 300_000; // 5 minutes
+
+export interface BashJob {
+  id: string;
+  command: string;
+  status: 'running' | 'completed' | 'failed' | 'killed' | 'timeout';
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  startedAt: number;
+  completedAt: number | null;
+  process: ChildProcess | null;
+}
+
+/** In-memory registry of background jobs. */
+const asyncJobs = new Map<string, BashJob>();
+
+/** Counter for generating unique job IDs. */
+let jobIdCounter = 0;
+
+/**
+ * Expose the job map for testing. Production code uses executeAsyncBash /
+ * executeBashJobStatus / executeBashJobKill instead.
+ */
+export function _getJobsForTesting(): Map<string, BashJob> {
+  return asyncJobs;
+}
+
+/**
+ * Start a background bash command. Returns immediately with a job ID.
+ * The process runs asynchronously; use BashJobStatus to poll for results.
+ */
+export function executeAsyncBash(input: {
+  command: string;
+  timeout?: number;
+}): string {
+  const timeoutMs = input.timeout
+    ? input.timeout * 1000
+    : DEFAULT_ASYNC_BASH_TIMEOUT_MS;
+
+  const jobId = `job_${++jobIdCounter}_${Date.now().toString(36)}`;
+
+  const child = spawn('/bin/bash', ['-c', input.command], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    detached: false,
+  });
+
+  const job: BashJob = {
+    id: jobId,
+    command: input.command,
+    status: 'running',
+    exitCode: null,
+    stdout: '',
+    stderr: '',
+    startedAt: Date.now(),
+    completedAt: null,
+    process: child,
+  };
+
+  child.stdout?.on('data', (chunk: Buffer) => {
+    job.stdout += chunk.toString('utf-8');
+    // Truncate in-memory buffer to prevent unbounded growth
+    if (Buffer.byteLength(job.stdout, 'utf-8') > MAX_OUTPUT_BYTES * 2) {
+      job.stdout = job.stdout.slice(-MAX_OUTPUT_BYTES);
+    }
+  });
+
+  child.stderr?.on('data', (chunk: Buffer) => {
+    job.stderr += chunk.toString('utf-8');
+    if (Buffer.byteLength(job.stderr, 'utf-8') > MAX_OUTPUT_BYTES * 2) {
+      job.stderr = job.stderr.slice(-MAX_OUTPUT_BYTES);
+    }
+  });
+
+  child.on('close', (code) => {
+    if (job.status === 'running') {
+      job.status = code === 0 ? 'completed' : 'failed';
+      job.exitCode = code;
+      job.completedAt = Date.now();
+      job.process = null;
+    }
+  });
+
+  child.on('error', (err) => {
+    if (job.status === 'running') {
+      job.status = 'failed';
+      job.stderr += `\nProcess error: ${err.message}`;
+      job.completedAt = Date.now();
+      job.process = null;
+    }
+  });
+
+  // Timeout enforcement
+  const timer = setTimeout(() => {
+    if (job.status === 'running' && job.process) {
+      job.process.kill('SIGTERM');
+      job.status = 'timeout';
+      job.completedAt = Date.now();
+      job.stderr += `\nKilled: exceeded ${timeoutMs / 1000}s timeout`;
+      job.process = null;
+    }
+  }, timeoutMs);
+
+  // Don't let the timer keep the process alive
+  timer.unref();
+
+  asyncJobs.set(jobId, job);
+
+  return JSON.stringify({ jobId, status: 'started' });
+}
+
+/**
+ * Get the current status and output of a background job.
+ */
+export function executeBashJobStatus(input: { jobId: string }): string {
+  const job = asyncJobs.get(input.jobId);
+  if (!job) {
+    throw new Error(`Unknown job ID: ${input.jobId}`);
+  }
+
+  return JSON.stringify({
+    jobId: job.id,
+    command: job.command,
+    status: job.status,
+    exitCode: job.exitCode,
+    stdout: truncateOutput(job.stdout),
+    stderr: truncateOutput(job.stderr),
+    startedAt: job.startedAt,
+    completedAt: job.completedAt,
+    durationMs: job.completedAt
+      ? job.completedAt - job.startedAt
+      : Date.now() - job.startedAt,
+  });
+}
+
+/**
+ * Kill a running background job.
+ */
+export function executeBashJobKill(input: { jobId: string }): string {
+  const job = asyncJobs.get(input.jobId);
+  if (!job) {
+    throw new Error(`Unknown job ID: ${input.jobId}`);
+  }
+
+  if (job.status !== 'running') {
+    return JSON.stringify({
+      jobId: job.id,
+      status: job.status,
+      message: `Job already ${job.status}`,
+    });
+  }
+
+  if (job.process) {
+    job.process.kill('SIGTERM');
+  }
+  job.status = 'killed';
+  job.completedAt = Date.now();
+  job.process = null;
+
+  return JSON.stringify({
+    jobId: job.id,
+    status: 'killed',
+    message: 'Job terminated',
+  });
+}
+
 // ── Dispatcher ────────────────────────────────────────────────
 
 /**
@@ -317,8 +537,10 @@ export async function executeTool(
   const gateCtx = ctx?.gate;
 
   // Gate check: if governance context is provided, evaluate gates first
+  // AsyncBash uses the same gate rules as Bash
   if (gateCtx) {
-    const gate = checkGate(name, input, gateCtx);
+    const gateName = name === 'AsyncBash' ? 'Bash' : name;
+    const gate = checkGate(gateName, input, gateCtx);
     if (!gate.allowed) {
       // Record block on retry budget
       try { ctx?.retryBudget?.recordBlock(gate.code); } catch { /* fail-open */ }
@@ -361,9 +583,30 @@ export async function executeTool(
         toolResult = { result, is_error: false };
         break;
       }
+      case 'AsyncBash': {
+        const result = executeAsyncBash(
+          input as { command: string; timeout?: number },
+        );
+        toolResult = { result, is_error: false };
+        break;
+      }
+      case 'BashJobStatus': {
+        const result = executeBashJobStatus(
+          input as { jobId: string },
+        );
+        toolResult = { result, is_error: false };
+        break;
+      }
+      case 'BashJobKill': {
+        const result = executeBashJobKill(
+          input as { jobId: string },
+        );
+        toolResult = { result, is_error: false };
+        break;
+      }
       default:
         toolResult = {
-          result: `Unknown tool: ${name}. Available tools: Read, Write, Edit, Bash`,
+          result: `Unknown tool: ${name}. Available tools: Read, Write, Edit, Bash, AsyncBash, BashJobStatus, BashJobKill`,
           is_error: true,
         };
     }
@@ -411,6 +654,121 @@ export async function executeTool(
   }
 }
 
+// ── Parallel tool execution ───────────────────────────────────
+
+/** Tools that mutate files — conflicting when targeting the same path. */
+const FILE_MUTATING_TOOLS = new Set(['Write', 'Edit']);
+
+/**
+ * Extract the target file path from a tool's input, if applicable.
+ */
+function getTargetFile(name: string, input: Record<string, unknown>): string | null {
+  if (FILE_MUTATING_TOOLS.has(name)) {
+    return (input.path as string) || null;
+  }
+  return null;
+}
+
+/**
+ * Execute tool_use blocks with safe parallelism:
+ * - Tools targeting the same file via Write/Edit run sequentially
+ * - All other tools run in parallel via Promise.all
+ *
+ * Returns ToolResultBlockParam[] in the same order as the input blocks,
+ * preserving the Anthropic API's expected correspondence.
+ */
+export async function executeToolsParallel(
+  blocks: ToolUseBlock[],
+  toolCtx?: ToolContext,
+): Promise<ToolResultBlockParam[]> {
+  if (blocks.length <= 1) {
+    // Single block — no parallelism needed
+    if (blocks.length === 0) return [];
+    const block = blocks[0];
+    const { result, is_error } = await executeTool(
+      block.name,
+      block.input as Record<string, unknown>,
+      toolCtx,
+    );
+    return [{
+      type: 'tool_result',
+      tool_use_id: block.id,
+      content: result,
+      ...(is_error ? { is_error: true } : {}),
+    }];
+  }
+
+  // Group blocks by target file. Blocks with the same target file
+  // (and the file is being mutated) must run sequentially.
+  // Non-file-mutating blocks get null → run in parallel with everything.
+  const results: ToolResultBlockParam[] = new Array(blocks.length);
+
+  // Identify file-conflict groups
+  const fileGroups = new Map<string, number[]>(); // filePath → block indices
+  const parallelIndices: number[] = [];
+
+  for (let i = 0; i < blocks.length; i++) {
+    const target = getTargetFile(blocks[i].name, blocks[i].input as Record<string, unknown>);
+    if (target) {
+      const group = fileGroups.get(target);
+      if (group) {
+        group.push(i);
+      } else {
+        fileGroups.set(target, [i]);
+      }
+    } else {
+      parallelIndices.push(i);
+    }
+  }
+
+  // Execute a single block and store its result at the correct index
+  async function execOne(idx: number): Promise<void> {
+    const block = blocks[idx];
+    const { result, is_error } = await executeTool(
+      block.name,
+      block.input as Record<string, unknown>,
+      toolCtx,
+    );
+    results[idx] = {
+      type: 'tool_result',
+      tool_use_id: block.id,
+      content: result,
+      ...(is_error ? { is_error: true } : {}),
+    };
+  }
+
+  // Build promises: parallel blocks run concurrently,
+  // file-conflict groups run their members sequentially but different
+  // groups run concurrently with each other.
+  const promises: Promise<void>[] = [];
+
+  // Parallel (non-conflicting) blocks
+  for (const idx of parallelIndices) {
+    promises.push(execOne(idx));
+  }
+
+  // Sequential groups: each group is a serial chain
+  for (const indices of fileGroups.values()) {
+    if (indices.length === 1) {
+      // Single block targeting this file — can run in parallel
+      promises.push(execOne(indices[0]));
+    } else {
+      // Multiple blocks targeting same file — chain them
+      promises.push(
+        (async () => {
+          for (const idx of indices) {
+            await execOne(idx);
+          }
+        })(),
+      );
+    }
+  }
+
+  await Promise.all(promises);
+
+  return results;
+}
+
 // ── Tool loop orchestrator ────────────────────────────────────
 
 /** Default maximum send→execute→append iterations. */
@@ -419,7 +777,7 @@ const DEFAULT_MAX_ITERATIONS = 10;
 /**
  * Orchestrates a multi-turn tool_use conversation with Claude.
  *
- * Sends the initial messages with TOOL_DEFINITIONS attached.
+ * Sends the initial messages to the LLM.
  * When the model responds with `stop_reason: 'tool_use'`, extracts
  * the tool_use blocks, executes each tool sequentially, appends
  * results as a user message, and sends the next turn.
@@ -429,7 +787,6 @@ const DEFAULT_MAX_ITERATIONS = 10;
  * @returns The final Message from Claude (typically stop_reason: 'end_turn').
  */
 export async function runToolLoop(
-  client: Anthropic,
   messages: ChatMessage[],
   options: SendMessageOptions & { maxIterations?: number; context?: GateContext; retryBudget?: RetryBudget } = {},
 ): Promise<Message> {
@@ -438,7 +795,6 @@ export async function runToolLoop(
   // Ensure tool definitions are included
   const loopOpts: SendMessageOptions = {
     ...sendOpts,
-    tools: TOOL_DEFINITIONS,
   };
 
   // Build ToolContext from options
@@ -454,7 +810,7 @@ export async function runToolLoop(
   // Work on a mutable copy so we don't mutate the caller's array
   const conversation: ChatMessage[] = [...messages];
 
-  let response = await sendMessage(client, conversation, loopOpts);
+  let response = await sendMessage(null, conversation, loopOpts);
   let iterations = 0;
 
   while (isToolUseResponse(response) && iterations < maxIterations) {
@@ -481,21 +837,8 @@ export async function runToolLoop(
       content: response.content as ContentBlockParam[],
     });
 
-    // Execute each tool sequentially and build result entries
-    const toolResults: ToolResultBlockParam[] = [];
-    for (const block of toolUseBlocks) {
-      const { result, is_error } = await executeTool(
-        block.name,
-        block.input as Record<string, unknown>,
-        toolCtx,
-      );
-      toolResults.push({
-        type: 'tool_result',
-        tool_use_id: block.id,
-        content: result,
-        ...(is_error ? { is_error: true } : {}),
-      });
-    }
+    // Execute tools — parallel where safe, sequential for file conflicts
+    const toolResults = await executeToolsParallel(toolUseBlocks, toolCtx);
 
     // Append the tool results as a user message
     conversation.push({
@@ -504,7 +847,7 @@ export async function runToolLoop(
     });
 
     // Send the next turn
-    response = await sendMessage(client, conversation, loopOpts);
+    response = await sendMessage(null, conversation, loopOpts);
   }
 
   return response;

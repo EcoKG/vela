@@ -4,7 +4,7 @@ import { Box, Text, useApp, useInput } from 'ink';
 import { Header } from './Header.js';
 import { FullscreenLayout } from './FullscreenLayout.js';
 import { MessageList } from './MessageList.js';
-import type { Message, ScrollViewRef } from './MessageList.js';
+import type { Message } from './MessageList.js';
 import type { ToolCallInfo } from './ToolCallBlock.js';
 import { ChatInput } from './ChatInput.js';
 import { ToolStatus } from './ToolStatus.js';
@@ -17,7 +17,6 @@ import { BudgetManager } from '../budget-manager.js';
 import type { BudgetStatus } from '../budget-manager.js';
 
 import {
-  createClaudeClient,
   sendMessage,
   extractToolUseBlocks,
   isToolUseResponse,
@@ -29,12 +28,11 @@ import {
 } from '../context-manager.js';
 import { DEFAULT_MODEL } from '../models.js';
 import { selectModel } from '../model-router.js';
-import { sendMessageViaCli } from '../claude-code-adapter.js';
 import { TokenTracker } from '../token-tracker.js';
 import type { Provider } from '../provider.js';
 import type { TokenState, CostEstimate } from '../token-tracker.js';
 import type { ChatMessage, SendMessageOptions } from '../claude-client.js';
-import { executeTool, TOOL_DEFINITIONS } from '../tool-engine.js';
+import { executeTool, executeToolsParallel } from '../tool-engine.js';
 import { buildGateContext, DEFAULT_RETRY_BUDGET } from '../governance/index.js';
 import { RetryBudget } from '../governance/index.js';
 import type { GateContext } from '../governance/index.js';
@@ -46,6 +44,19 @@ import {
   addMessage as addSessionMessage,
   updateSession,
 } from '../session.js';
+import {
+  initPipeline,
+  getPipelineState,
+  transitionPipeline,
+  cancelPipeline,
+} from '../pipeline.js';
+import type { Scale } from '../pipeline.js';
+import { runPipeline } from '../pipeline-orchestrator.js';
+import type { PipelineCallbacks } from '../pipeline-orchestrator.js';
+import { findProjectRoot } from '../config.js';
+import { openStateDb } from '../state.js';
+import { closeDb } from '../db.js';
+import { join } from 'node:path';
 
 import type {
   ToolResultBlockParam,
@@ -132,9 +143,12 @@ export function ChatApp({
   const [consecutiveBlocks, setConsecutiveBlocks] = useState(0);
   const [pipelineMode, setPipelineMode] = useState<string | null>(null);
 
-  // Scroll state for MessageList ScrollView
-  const scrollRef = useRef<ScrollViewRef>(null);
-  const userScrolledUpRef = useRef(false);
+  // Pipeline execution state (K016: useState + useRef mirror for async closure safety)
+  const [isPipelineRunning, setIsPipelineRunning] = useState(false);
+  const isPipelineRunningRef = useRef(false);
+  const pipelineDbRef = useRef<Database.Database | null>(null);
+
+  // Scroll state removed — MessageList now uses column-reverse for auto-scroll
 
   // Token tracking
   const tokenTrackerRef = useRef(new TokenTracker());
@@ -181,6 +195,10 @@ export function ChatApp({
       try {
         sessionDbRef.current?.close();
       } catch { /* ignore close errors */ }
+      // Close pipeline DB if still open from an active pipeline
+      try {
+        pipelineDbRef.current?.close();
+      } catch { /* ignore close errors */ }
     };
   }, []);
 
@@ -192,12 +210,7 @@ export function ChatApp({
     };
   }, []);
 
-  // Auto-scroll to bottom when new messages arrive (skip if user has scrolled up)
-  useEffect(() => {
-    if (!userScrolledUpRef.current) {
-      scrollRef.current?.scrollToBottom();
-    }
-  }, [messages.length]);
+  // Auto-scroll handled by column-reverse layout
 
   // Keyboard shortcuts
   useInput((input, key) => {
@@ -213,29 +226,6 @@ export function ChatApp({
     if (key.escape) {
       setHelpVisible(false);
       return;
-    }
-    // Scroll key bindings — only when not streaming
-    if (!isStreamingRef.current) {
-      if (key.upArrow) {
-        scrollRef.current?.scrollBy(-1);
-        userScrolledUpRef.current = true;
-        return;
-      }
-      if (key.downArrow) {
-        scrollRef.current?.scrollBy(1);
-        return;
-      }
-      if (key.pageUp) {
-        const viewportHeight = scrollRef.current?.getViewportHeight?.() ?? 10;
-        scrollRef.current?.scrollBy(-viewportHeight);
-        userScrolledUpRef.current = true;
-        return;
-      }
-      if (key.pageDown) {
-        const viewportHeight = scrollRef.current?.getViewportHeight?.() ?? 10;
-        scrollRef.current?.scrollBy(viewportHeight);
-        return;
-      }
     }
   });
 
@@ -266,9 +256,6 @@ export function ChatApp({
   async function handleSubmit(input: string) {
     // Guard: ignore empty/whitespace input
     if (!input.trim()) return;
-
-    // Reset scroll-to-bottom tracking when user sends a new message
-    userScrolledUpRef.current = false;
 
     // Intercept slash commands before API call
     const slashResult = handleSlashCommand(input, {
@@ -352,10 +339,8 @@ export function ChatApp({
           autoRouteRef.current = newAutoRoute;
           setAutoRoute(newAutoRoute);
           if (newAutoRoute) {
-            // Enabling: reset explicit flag so auto-routing takes effect
             isExplicitModelRef.current = false;
           } else {
-            // Disabling: clear routed model display
             setRoutedModel(null);
           }
           setMessages((prev) => [
@@ -365,6 +350,183 @@ export function ChatApp({
           ]);
           return;
         }
+
+        // ── Pipeline commands ────────────────────────────────
+        case 'pipeline-start': {
+          // Guard: prevent concurrent pipelines
+          if (isPipelineRunningRef.current) {
+            setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '[vela] ❌ 파이프라인이 이미 실행 중입니다.' }]);
+            return;
+          }
+
+          try {
+            const projectRoot = findProjectRoot(process.cwd());
+            if (!projectRoot) {
+              setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '[vela] ❌ Vela 프로젝트를 찾을 수 없습니다. `vela init`을 먼저 실행하세요.' }]);
+              return;
+            }
+
+            const db = openStateDb(join(projectRoot, '.vela'));
+            pipelineDbRef.current = db;
+
+            // Set pipeline-running state (K016 mirror)
+            isPipelineRunningRef.current = true;
+            setIsPipelineRunning(true);
+            setStreamingState(true);
+
+            setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: `[vela] 🚀 파이프라인 시작: ${slashResult.request}` }]);
+
+            const callbacks: PipelineCallbacks = {
+              onStepStart: (stage) => {
+                if (mountedRef.current) {
+                  setPipelineMode(stage);
+                  setMessages((prev) => [...prev, { role: 'assistant', content: `[vela] ⛵ [${stage}] 시작...` }]);
+                }
+              },
+              onStepComplete: (stage, result) => {
+                if (mountedRef.current) {
+                  setMessages((prev) => [...prev, { role: 'assistant', content: `[vela] ✅ [${stage}] 완료 (tools: ${result.toolCalls})` }]);
+                }
+              },
+              onText: (text) => {
+                if (mountedRef.current) {
+                  setStreamingText((prev) => prev + text);
+                }
+              },
+              onToolCall: (name) => {
+                if (mountedRef.current) {
+                  setCurrentTool(name);
+                }
+              },
+              onError: (error, stage) => {
+                if (mountedRef.current) {
+                  setMessages((prev) => [...prev, { role: 'assistant', content: `[vela] ❌ [${stage}] 오류: ${error.message}` }]);
+                }
+              },
+            };
+
+            // Fire-and-forget with .then/.catch/.finally cleanup
+            runPipeline(slashResult.request, {
+              db,
+              cwd: projectRoot,
+              model: currentModelRef.current,
+              maxTokens,
+              callbacks,
+              scale: (slashResult.scale ?? undefined) as Scale | undefined,
+              pipelineType: slashResult.type as import('../pipeline.js').PipelineType | undefined,
+            }).then((result) => {
+              if (!mountedRef.current) return;
+              if (result.ok) {
+                const totalTools = result.steps.reduce((sum, s) => sum + s.toolCalls, 0);
+                setMessages((prev) => [...prev, { role: 'assistant', content: `[vela] 🎉 파이프라인 완료 — ${result.steps.length}단계, 도구 호출 ${totalTools}회` }]);
+              } else {
+                setMessages((prev) => [...prev, { role: 'assistant', content: `[vela] ❌ 파이프라인 실패: ${result.error}` }]);
+              }
+            }).catch((err: unknown) => {
+              if (!mountedRef.current) return;
+              const msg = err instanceof Error ? err.message : String(err);
+              setMessages((prev) => [...prev, { role: 'assistant', content: `[vela] ❌ 파이프라인 오류: ${msg}` }]);
+            }).finally(() => {
+              // Close DB and reset pipeline state
+              try { pipelineDbRef.current?.close(); } catch { /* ignore close errors */ }
+              pipelineDbRef.current = null;
+              if (mountedRef.current) {
+                isPipelineRunningRef.current = false;
+                setIsPipelineRunning(false);
+                setStreamingState(false);
+                setPipelineMode(null);
+                setCurrentTool(null);
+                setStreamingText('');
+              }
+            });
+          } catch (e) {
+            // Sync errors (findProjectRoot, openStateDb)
+            pipelineDbRef.current = null;
+            isPipelineRunningRef.current = false;
+            setIsPipelineRunning(false);
+            setStreamingState(false);
+            setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: `[vela] ❌ ${e instanceof Error ? e.message : String(e)}` }]);
+          }
+          return;
+        }
+        case 'pipeline-state': {
+          try {
+            const projectRoot = findProjectRoot(process.cwd());
+            if (!projectRoot) {
+              setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '[vela] ❌ Vela 프로젝트를 찾을 수 없습니다.' }]);
+              return;
+            }
+            const db = openStateDb(join(projectRoot, '.vela'));
+            try {
+              const pipeline = getPipelineState(db);
+              if (pipeline) {
+                const info = `[vela] 📋 Pipeline State\n  ID: ${pipeline.id}\n  Type: ${pipeline.type}\n  Scale: ${pipeline.scale}\n  Status: ${pipeline.status}\n  Step: ${pipeline.current_step}\n  Request: ${pipeline.request}`;
+                setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: info }]);
+              } else {
+                setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '[vela] 활성 파이프라인이 없습니다.' }]);
+              }
+            } finally { closeDb(db); }
+          } catch (e) {
+            setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: `[vela] ❌ ${e instanceof Error ? e.message : String(e)}` }]);
+          }
+          return;
+        }
+        case 'pipeline-transition': {
+          try {
+            const projectRoot = findProjectRoot(process.cwd());
+            if (!projectRoot) {
+              setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '[vela] ❌ Vela 프로젝트를 찾을 수 없습니다.' }]);
+              return;
+            }
+            const db = openStateDb(join(projectRoot, '.vela'));
+            try {
+              const result = transitionPipeline(db);
+              if (result.ok) {
+                setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: `[vela] ⏭️ 다음 단계로 전환 완료` }]);
+              } else {
+                setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: `[vela] ❌ ${(result as { error?: string }).error ?? 'Transition failed'}` }]);
+              }
+            } finally { closeDb(db); }
+          } catch (e) {
+            setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: `[vela] ❌ ${e instanceof Error ? e.message : String(e)}` }]);
+          }
+          return;
+        }
+        case 'pipeline-cancel': {
+          // If a pipeline is actively running, cancel via the live DB handle
+          if (isPipelineRunningRef.current && pipelineDbRef.current) {
+            try {
+              cancelPipeline(pipelineDbRef.current);
+              setPipelineMode(null);
+              setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '[vela] 🛑 파이프라인이 취소되었습니다. (진행 중인 API 호출 완료 후 중단됩니다)' }]);
+            } catch (e) {
+              setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: `[vela] ❌ ${e instanceof Error ? e.message : String(e)}` }]);
+            }
+            return;
+          }
+          // Fallback: cancel a pipeline that was started but not actively running
+          try {
+            const projectRoot = findProjectRoot(process.cwd());
+            if (!projectRoot) {
+              setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '[vela] ❌ Vela 프로젝트를 찾을 수 없습니다.' }]);
+              return;
+            }
+            const db = openStateDb(join(projectRoot, '.vela'));
+            try {
+              const result = cancelPipeline(db);
+              if (result.ok) {
+                setPipelineMode(null);
+                setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '[vela] 🛑 파이프라인이 취소되었습니다.' }]);
+              } else {
+                setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: `[vela] ❌ ${(result as { error?: string }).error ?? 'Cancel failed'}` }]);
+              }
+            } finally { closeDb(db); }
+          } catch (e) {
+            setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: `[vela] ❌ ${e instanceof Error ? e.message : String(e)}` }]);
+          }
+          return;
+        }
+
         case 'error':
           setMessages((prev) => [
             ...prev,
@@ -373,16 +535,6 @@ export function ChatApp({
           ]);
           return;
         case 'fresh': {
-          // Context reset is only supported for API provider
-          if (provider.type !== 'api') {
-            setMessages((prev) => [
-              ...prev,
-              userMsg,
-              { role: 'assistant', content: '[vela] 컨텍스트 리셋은 API 모드에서만 지원됩니다' },
-            ]);
-            return;
-          }
-
           // Guard: need at least 4 messages for meaningful summarization
           if (conversationRef.current.length < 4) {
             setMessages((prev) => [
@@ -397,9 +549,7 @@ export function ChatApp({
           setStreamingState(true);
 
           try {
-            const client = createClaudeClient((provider as { type: 'api'; apiKey: string }).apiKey);
             const summary = await summarizeConversation(
-              client,
               conversationRef.current,
               'claude-haiku-4-20250514',
             );
@@ -519,63 +669,7 @@ export function ChatApp({
     }
 
     try {
-      if (provider.type === 'cli') {
-        // ── CLI provider path: delegate to Claude Code CLI ──────
-        // No tool loop, no auto-routing, no auto context reset
-        const cliResponse = await sendMessageViaCli(conversationRef.current, {
-          model: currentModelRef.current,
-          system,
-          onText: (text) => {
-            if (mountedRef.current) {
-              setStreamingText((prev) => prev + text);
-            }
-          },
-        });
-        trackUsage(cliResponse);
-
-        const finalText = cliResponse.content
-          .filter((block): block is TextBlock => block.type === 'text')
-          .map((block) => block.text)
-          .join('');
-
-        conversationRef.current = [
-          ...conversationRef.current,
-          {
-            role: 'assistant',
-            content: cliResponse.content as ContentBlockParam[],
-          },
-        ];
-
-        if (mountedRef.current) {
-          setMessages((prev) => [
-            ...prev,
-            { role: 'assistant', content: finalText },
-          ]);
-          setStreamingText('');
-        }
-
-        // Save messages to session DB (fail-open per K013)
-        if (sessionDbRef.current && sessionIdRef.current) {
-          try {
-            addSessionMessage(sessionDbRef.current, {
-              session_id: sessionIdRef.current,
-              role: 'user',
-              display: input,
-              content: input,
-            });
-            addSessionMessage(sessionDbRef.current, {
-              session_id: sessionIdRef.current,
-              role: 'assistant',
-              display: finalText,
-              content: cliResponse.content,
-            });
-          } catch (e) {
-            process.stderr.write(`[vela] session save failed: ${e instanceof Error ? e.message : String(e)}\n`);
-          }
-        }
-      } else {
-      // ── API provider path: full Anthropic API + tool loop ──────
-      const client = createClaudeClient(provider.apiKey);
+      // ── Unified message path: shim + full tool loop ──────
 
       // Auto-routing: select model based on message complexity and budget
       let effectiveModel = currentModelRef.current;
@@ -599,7 +693,6 @@ export function ChatApp({
         model: effectiveModel,
         maxTokens,
         system,
-        tools: TOOL_DEFINITIONS,
         onText: (text) => {
           if (mountedRef.current) {
             setStreamingText((prev) => prev + text);
@@ -607,7 +700,7 @@ export function ChatApp({
         },
       };
 
-      let response = await sendMessage(client, conversationRef.current, opts);
+      let response = await sendMessage(null, conversationRef.current, opts);
       trackUsage(response);
       let iterations = 0;
 
@@ -646,18 +739,19 @@ export function ChatApp({
             }
           : undefined;
 
-        // Execute each tool
-        const toolResults: ToolResultBlockParam[] = [];
-        for (const block of toolBlocks) {
-          if (mountedRef.current) {
-            setCurrentTool(block.name);
-          }
+        // Execute tools — parallel where safe, sequential for file conflicts
+        if (mountedRef.current) {
+          setCurrentTool(toolBlocks.length === 1 ? toolBlocks[0].name : `${toolBlocks.length} tools`);
+        }
 
-          const { result, is_error } = await executeTool(
-            block.name,
-            block.input as Record<string, unknown>,
-            toolCtx,
-          );
+        const toolResults = await executeToolsParallel(toolBlocks, toolCtx);
+
+        // Process results for TUI state tracking
+        for (let i = 0; i < toolBlocks.length; i++) {
+          const block = toolBlocks[i];
+          const tr = toolResults[i];
+          const result = tr.content as string;
+          const is_error = !!tr.is_error;
 
           // Build ToolCallInfo for inline display
           let tcStatus: ToolCallInfo['status'] = 'complete';
@@ -688,13 +782,6 @@ export function ChatApp({
               setConsecutiveBlocks(0);
             }
           }
-
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content: result,
-            ...(is_error ? { is_error: true } : {}),
-          });
         }
 
         if (mountedRef.current) {
@@ -712,7 +799,7 @@ export function ChatApp({
         ];
 
         // Send next turn
-        response = await sendMessage(client, conversationRef.current, opts);
+        response = await sendMessage(null, conversationRef.current, opts);
         trackUsage(response);
       }
 
@@ -742,10 +829,9 @@ export function ChatApp({
       }
 
       // Auto-trigger context reset when token threshold is exceeded
-      if (provider.type === 'api' && shouldResetContext(tokenTrackerRef.current.getState().totalTokens)) {
+      if (shouldResetContext(tokenTrackerRef.current.getState().totalTokens)) {
         try {
           const summary = await summarizeConversation(
-            client,
             conversationRef.current,
             'claude-haiku-4-20250514',
           );
@@ -806,7 +892,6 @@ export function ChatApp({
           process.stderr.write(`[vela] session save failed: ${e instanceof Error ? e.message : String(e)}\n`);
         }
       }
-      } // end else (API provider path)
     } catch (err: unknown) {
       if (mountedRef.current) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -829,10 +914,14 @@ export function ChatApp({
     }
   }
 
+  // Compute body height for MessageList scroll — use stdout rows with fallback
+  const screenRows = process.stdout.rows ?? 24;
+  const bodyHeight = Math.max(screenRows - 3 - 3, 4); // header=3, input=3
+
   return (
     <FullscreenLayout
-      headerHeight={4}
-      inputHeight={2}
+      headerHeight={3}
+      inputHeight={3}
       sidebarVisible={dashboardVisible}
       sidebar={
         <Dashboard
@@ -852,6 +941,7 @@ export function ChatApp({
           budgetBlocked={budgetStatus.blocked}
           routedModel={routedModel}
           providerType={provider.type}
+          workspacePath={process.cwd()}
         />
       }
       header={
@@ -867,7 +957,7 @@ export function ChatApp({
       body={
         <Box flexDirection="column" flexGrow={1}>
           <HelpOverlay visible={helpVisible} />
-          <MessageList key={clearCount} ref={scrollRef} messages={messages} streamingText={streamingText} />
+          <MessageList key={clearCount} messages={messages} streamingText={streamingText} isStreaming={isStreaming} height={bodyHeight} />
           <ToolStatus
             toolName={currentTool ?? undefined}
             isRunning={currentTool !== null}
@@ -881,10 +971,12 @@ export function ChatApp({
         </Box>
       }
       input={
-        <Box>
+        <Box flexDirection="column">
           <ChatInput onSubmit={handleSubmit} isStreaming={isStreaming} />
           {queueLength > 0 ? (
-            <Text color={theme.highlight}> queued: {queueLength}/{MAX_QUEUE_SIZE}</Text>
+            <Box paddingLeft={2}>
+              <Text color={theme.highlight}>queued: {queueLength}/{MAX_QUEUE_SIZE}</Text>
+            </Box>
           ) : null}
         </Box>
       }

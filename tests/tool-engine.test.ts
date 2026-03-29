@@ -9,10 +9,15 @@ import {
   executeEdit,
   executeBash,
   executeTool,
+  executeAsyncBash,
+  executeBashJobStatus,
+  executeBashJobKill,
+  executeToolsParallel,
+  _getJobsForTesting,
   runToolLoop,
 } from '../src/tool-engine.js';
 import { RetryBudget } from '../src/governance/retry-budget.js';
-import type { Message, ToolUseBlock, TextBlock } from '@anthropic-ai/sdk/resources/messages/messages.js';
+import type { Message, ToolUseBlock, TextBlock, ToolResultBlockParam } from '@anthropic-ai/sdk/resources/messages/messages.js';
 
 // ── Temp directory management ─────────────────────────────────
 
@@ -42,8 +47,8 @@ async function writeFixture(name: string, content: string): Promise<string> {
 // ── TOOL_DEFINITIONS ──────────────────────────────────────────
 
 describe('TOOL_DEFINITIONS', () => {
-  it('has exactly 4 tool definitions', () => {
-    expect(TOOL_DEFINITIONS).toHaveLength(4);
+  it('has exactly 7 tool definitions', () => {
+    expect(TOOL_DEFINITIONS).toHaveLength(7);
   });
 
   it('each tool has name, description, and input_schema with type object', () => {
@@ -55,9 +60,9 @@ describe('TOOL_DEFINITIONS', () => {
     }
   });
 
-  it('contains Read, Write, Edit, Bash tools', () => {
+  it('contains Read, Write, Edit, Bash, AsyncBash, BashJobStatus, BashJobKill tools', () => {
     const names = TOOL_DEFINITIONS.map((t) => t.name);
-    expect(names).toEqual(['Read', 'Write', 'Edit', 'Bash']);
+    expect(names).toEqual(['Read', 'Write', 'Edit', 'Bash', 'AsyncBash', 'BashJobStatus', 'BashJobKill']);
   });
 });
 
@@ -278,6 +283,242 @@ describe('executeTool', () => {
     expect(is_error).toBe(true);
     expect(result).toContain('File not found');
   });
+
+  it('routes AsyncBash to executeAsyncBash', async () => {
+    const { result, is_error } = await executeTool('AsyncBash', {
+      command: 'echo "async hello"',
+    });
+    expect(is_error).toBe(false);
+    const parsed = JSON.parse(result);
+    expect(parsed.jobId).toBeTruthy();
+    expect(parsed.status).toBe('started');
+  });
+
+  it('routes BashJobStatus to executeBashJobStatus', async () => {
+    // Start a fast-completing job first
+    const startResult = await executeTool('AsyncBash', { command: 'echo done' });
+    const { jobId } = JSON.parse(startResult.result);
+
+    // Wait briefly for the process to finish
+    await new Promise((r) => setTimeout(r, 200));
+
+    const { result, is_error } = await executeTool('BashJobStatus', { jobId });
+    expect(is_error).toBe(false);
+    const parsed = JSON.parse(result);
+    expect(parsed.jobId).toBe(jobId);
+    expect(['running', 'completed']).toContain(parsed.status);
+  });
+
+  it('routes BashJobKill to executeBashJobKill', async () => {
+    const startResult = await executeTool('AsyncBash', { command: 'sleep 60' });
+    const { jobId } = JSON.parse(startResult.result);
+
+    const { result, is_error } = await executeTool('BashJobKill', { jobId });
+    expect(is_error).toBe(false);
+    const parsed = JSON.parse(result);
+    expect(parsed.status).toBe('killed');
+  });
+
+  it('applies Bash gate rules to AsyncBash', async () => {
+    const gateCtx = {
+      cwd: tmpDir,
+      mode: 'read',
+      config: { sandbox: { enabled: true } },
+    };
+    const { result, is_error } = await executeTool(
+      'AsyncBash',
+      { command: 'rm -rf /' },
+      gateCtx as any,
+    );
+    expect(is_error).toBe(true);
+    expect(result).toContain('BLOCKED');
+  });
+});
+
+// ── executeAsyncBash ──────────────────────────────────────────
+
+describe('executeAsyncBash', () => {
+  afterEach(() => {
+    // Clean up any running jobs
+    const jobs = _getJobsForTesting();
+    for (const [id, job] of jobs) {
+      if (job.status === 'running' && job.process) {
+        job.process.kill('SIGTERM');
+      }
+    }
+    jobs.clear();
+  });
+
+  it('returns a jobId and started status', () => {
+    const result = JSON.parse(executeAsyncBash({ command: 'echo hello' }));
+    expect(result.jobId).toMatch(/^job_/);
+    expect(result.status).toBe('started');
+  });
+
+  it('captures stdout from a completed job', async () => {
+    const { jobId } = JSON.parse(executeAsyncBash({ command: 'echo "async output"' }));
+
+    // Wait for completion
+    await new Promise((r) => setTimeout(r, 300));
+
+    const status = JSON.parse(executeBashJobStatus({ jobId }));
+    expect(status.status).toBe('completed');
+    expect(status.stdout).toContain('async output');
+    expect(status.exitCode).toBe(0);
+  });
+
+  it('captures stderr and marks failed jobs', async () => {
+    const { jobId } = JSON.parse(executeAsyncBash({ command: 'echo "err" >&2; exit 1' }));
+
+    await new Promise((r) => setTimeout(r, 300));
+
+    const status = JSON.parse(executeBashJobStatus({ jobId }));
+    expect(status.status).toBe('failed');
+    expect(status.stderr).toContain('err');
+    expect(status.exitCode).toBe(1);
+  });
+
+  it('kills a running job', async () => {
+    const { jobId } = JSON.parse(executeAsyncBash({ command: 'sleep 60' }));
+
+    const killResult = JSON.parse(executeBashJobKill({ jobId }));
+    expect(killResult.status).toBe('killed');
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    const status = JSON.parse(executeBashJobStatus({ jobId }));
+    expect(status.status).toBe('killed');
+  });
+
+  it('returns already-completed status when killing a finished job', async () => {
+    const { jobId } = JSON.parse(executeAsyncBash({ command: 'echo done' }));
+    await new Promise((r) => setTimeout(r, 300));
+
+    const killResult = JSON.parse(executeBashJobKill({ jobId }));
+    expect(killResult.status).toBe('completed');
+    expect(killResult.message).toContain('already');
+  });
+
+  it('throws for unknown job ID', () => {
+    expect(() => executeBashJobStatus({ jobId: 'job_nonexistent' })).toThrow('Unknown job ID');
+    expect(() => executeBashJobKill({ jobId: 'job_nonexistent' })).toThrow('Unknown job ID');
+  });
+
+  it('handles timeout enforcement', async () => {
+    const { jobId } = JSON.parse(executeAsyncBash({ command: 'sleep 30', timeout: 1 }));
+
+    // Wait for timeout (1s) + buffer
+    await new Promise((r) => setTimeout(r, 1500));
+
+    const status = JSON.parse(executeBashJobStatus({ jobId }));
+    expect(status.status).toBe('timeout');
+    expect(status.stderr).toContain('timeout');
+  });
+
+  it('generates unique job IDs', () => {
+    const result1 = JSON.parse(executeAsyncBash({ command: 'echo 1' }));
+    const result2 = JSON.parse(executeAsyncBash({ command: 'echo 2' }));
+    expect(result1.jobId).not.toBe(result2.jobId);
+  });
+});
+
+// ── executeToolsParallel ──────────────────────────────────────
+
+describe('executeToolsParallel', () => {
+  function makeToolUseBlock(name: string, input: Record<string, unknown>, id?: string): ToolUseBlock {
+    return {
+      type: 'tool_use',
+      id: id ?? 'toolu_' + Math.random().toString(36).slice(2, 8),
+      name,
+      input,
+    };
+  }
+
+  it('returns empty array for no blocks', async () => {
+    const results = await executeToolsParallel([]);
+    expect(results).toEqual([]);
+  });
+
+  it('handles a single block', async () => {
+    const block = makeToolUseBlock('Bash', { command: 'echo single' }, 'toolu_single');
+    const results = await executeToolsParallel([block]);
+    expect(results).toHaveLength(1);
+    expect(results[0].tool_use_id).toBe('toolu_single');
+    expect((results[0].content as string).trim()).toBe('single');
+  });
+
+  it('executes independent tools in parallel', async () => {
+    // Use async I/O tools to demonstrate true parallelism
+    // (Bash uses execSync so it blocks the event loop)
+    const file1 = await writeFixture('par-read-1.txt', 'content-a');
+    const file2 = await writeFixture('par-read-2.txt', 'content-b');
+
+    const block1 = makeToolUseBlock('Read', { path: file1 }, 'toolu_a');
+    const block2 = makeToolUseBlock('Read', { path: file2 }, 'toolu_b');
+    const block3 = makeToolUseBlock('Bash', { command: 'echo c' }, 'toolu_c');
+
+    const results = await executeToolsParallel([block1, block2, block3]);
+
+    expect(results).toHaveLength(3);
+    expect((results[0].content as string)).toBe('content-a');
+    expect((results[1].content as string)).toBe('content-b');
+    expect((results[2].content as string).trim()).toBe('c');
+    // Order preserved
+    expect(results[0].tool_use_id).toBe('toolu_a');
+    expect(results[1].tool_use_id).toBe('toolu_b');
+    expect(results[2].tool_use_id).toBe('toolu_c');
+  });
+
+  it('preserves order in results matching input blocks', async () => {
+    const block1 = makeToolUseBlock('Bash', { command: 'echo first' }, 'toolu_1');
+    const block2 = makeToolUseBlock('Bash', { command: 'echo second' }, 'toolu_2');
+    const block3 = makeToolUseBlock('Bash', { command: 'echo third' }, 'toolu_3');
+
+    const results = await executeToolsParallel([block1, block2, block3]);
+    expect(results[0].tool_use_id).toBe('toolu_1');
+    expect(results[1].tool_use_id).toBe('toolu_2');
+    expect(results[2].tool_use_id).toBe('toolu_3');
+  });
+
+  it('runs Write/Edit to same file sequentially (no data corruption)', async () => {
+    const filePath = await writeFixture('parallel-test.txt', 'original');
+    const block1 = makeToolUseBlock('Write', { path: filePath, content: 'step1' }, 'toolu_w1');
+    const block2 = makeToolUseBlock('Edit', { path: filePath, old_text: 'step1', new_text: 'step2' }, 'toolu_e1');
+
+    const results = await executeToolsParallel([block1, block2]);
+    expect(results[0].is_error).toBeFalsy();
+    expect(results[1].is_error).toBeFalsy();
+
+    // Final content should reflect sequential execution
+    const actual = await fs.readFile(filePath, 'utf-8');
+    expect(actual).toBe('step2');
+  });
+
+  it('runs Write to different files in parallel', async () => {
+    const file1 = tmpPath('par-a.txt');
+    const file2 = tmpPath('par-b.txt');
+
+    const start = Date.now();
+    const block1 = makeToolUseBlock('Bash', { command: `sleep 0.2 && echo done` }, 'toolu_p1');
+    const block2 = makeToolUseBlock('Write', { path: file1, content: 'a' }, 'toolu_p2');
+    const block3 = makeToolUseBlock('Write', { path: file2, content: 'b' }, 'toolu_p3');
+
+    const results = await executeToolsParallel([block1, block2, block3]);
+    expect(results).toHaveLength(3);
+    expect(results[0].is_error).toBeFalsy();
+    expect(results[1].is_error).toBeFalsy();
+    expect(results[2].is_error).toBeFalsy();
+  });
+
+  it('handles errors in one tool without affecting others', async () => {
+    const block1 = makeToolUseBlock('Bash', { command: 'echo ok' }, 'toolu_ok');
+    const block2 = makeToolUseBlock('Read', { path: '/nonexistent/file.txt' }, 'toolu_err');
+
+    const results = await executeToolsParallel([block1, block2]);
+    expect(results).toHaveLength(2);
+    expect(results[0].is_error).toBeFalsy();
+    expect(results[1].is_error).toBe(true);
+  });
 });
 
 // ── runToolLoop orchestrator ──────────────────────────────────
@@ -340,8 +581,7 @@ describe('runToolLoop', () => {
     vi.mocked(mockSendMessage).mockResolvedValueOnce(endMsg);
     vi.mocked(mockIsToolUseResponse).mockReturnValueOnce(false);
 
-    const client = {} as import('@anthropic-ai/sdk').default;
-    const result = await runToolLoop(client, [{ role: 'user', content: 'hi' }]);
+    const result = await runToolLoop([{ role: 'user', content: 'hi' }]);
 
     expect(result).toBe(endMsg);
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
@@ -367,8 +607,7 @@ describe('runToolLoop', () => {
     vi.mocked(mockExtractToolUseBlocks)
       .mockReturnValueOnce([toolBlock]);
 
-    const client = {} as import('@anthropic-ai/sdk').default;
-    const result = await runToolLoop(client, [{ role: 'user', content: 'run echo' }]);
+    const result = await runToolLoop([{ role: 'user', content: 'run echo' }]);
 
     expect(result).toBe(endMsg);
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
@@ -399,8 +638,7 @@ describe('runToolLoop', () => {
     vi.mocked(mockIsToolUseResponse).mockReturnValue(true);
     vi.mocked(mockExtractToolUseBlocks).mockReturnValue([toolBlock]);
 
-    const client = {} as import('@anthropic-ai/sdk').default;
-    const result = await runToolLoop(client, [{ role: 'user', content: 'loop' }], {
+    const result = await runToolLoop([{ role: 'user', content: 'loop' }], {
       maxIterations: 3,
     });
 
@@ -430,8 +668,7 @@ describe('runToolLoop', () => {
     vi.mocked(mockExtractToolUseBlocks)
       .mockReturnValueOnce([block1, block2]);
 
-    const client = {} as import('@anthropic-ai/sdk').default;
-    const result = await runToolLoop(client, [{ role: 'user', content: 'multi' }]);
+    const result = await runToolLoop([{ role: 'user', content: 'multi' }]);
 
     expect(result).toBe(endMsg);
 
@@ -451,9 +688,8 @@ describe('runToolLoop', () => {
     vi.mocked(mockSendMessage).mockResolvedValueOnce(endMsg);
     vi.mocked(mockIsToolUseResponse).mockReturnValueOnce(false);
 
-    const client = {} as import('@anthropic-ai/sdk').default;
     const original = [{ role: 'user' as const, content: 'test' }];
-    await runToolLoop(client, original);
+    await runToolLoop(original);
 
     expect(original).toHaveLength(1);
   });
@@ -475,9 +711,7 @@ describe('runToolLoop', () => {
     vi.mocked(mockIsToolUseResponse).mockReturnValueOnce(true);
     vi.mocked(mockExtractToolUseBlocks).mockReturnValueOnce([toolBlock]);
 
-    const client = {} as import('@anthropic-ai/sdk').default;
     const result = await runToolLoop(
-      client,
       [{ role: 'user', content: 'do something' }],
       { retryBudget: budget },
     );
@@ -510,9 +744,7 @@ describe('runToolLoop', () => {
     vi.mocked(mockExtractToolUseBlocks)
       .mockReturnValueOnce([toolBlock]);
 
-    const client = {} as import('@anthropic-ai/sdk').default;
     await runToolLoop(
-      client,
       [{ role: 'user', content: 'run bash' }],
       { retryBudget: budget },
     );

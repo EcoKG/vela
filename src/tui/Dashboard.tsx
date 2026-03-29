@@ -19,6 +19,22 @@ export interface DashboardProps {
   budgetBlocked?: boolean;
   routedModel?: string | null;
   providerType?: 'api' | 'cli';
+  /** Current working directory / workspace path. */
+  workspacePath?: string;
+}
+
+/** Shorten a path for display: ~/foo/bar or last 2 segments if too long. */
+function shortenPath(p: string, maxLen = 28): string {
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? '';
+  let display = p;
+  if (home && display.startsWith(home)) {
+    display = '~' + display.slice(home.length);
+  }
+  if (display.length > maxLen) {
+    const segments = display.split('/');
+    display = '…/' + segments.slice(-2).join('/');
+  }
+  return display;
 }
 
 export function Dashboard({
@@ -38,82 +54,94 @@ export function Dashboard({
   budgetBlocked = false,
   routedModel,
   providerType,
+  workspacePath,
 }: DashboardProps) {
-  // Don't render until first response produces tokens
-  if (inputTokens === 0 && outputTokens === 0 && totalTokens === 0) {
-    return null;
-  }
-
   const hasCostBreakdown = estimatedCost.inputCost > 0 || estimatedCost.outputCost > 0;
+  const hasTokens = inputTokens > 0 || outputTokens > 0 || totalTokens > 0;
 
   return (
     <Box borderStyle="single" borderColor={theme.dashboard.border} paddingX={1} flexDirection="column">
       <Text color={theme.dashboard.title} bold>📊 Dashboard</Text>
 
-      <Box>
-        <Text color={theme.text}>Tokens: </Text>
-        <Text color={theme.accent}>{inputTokens}</Text>
-        <Text color={theme.dim}> in / </Text>
-        <Text color={theme.accent}>{outputTokens}</Text>
-        <Text color={theme.dim}> out / </Text>
-        <Text color={theme.accent}>{totalTokens}</Text>
-        <Text color={theme.dim}> total</Text>
-      </Box>
-
-      <Box>
-        <Text color={theme.text}>Cost: </Text>
-        <Text color={theme.success}>${estimatedCost.totalCost.toFixed(4)}</Text>
-        {hasCostBreakdown && (
-          <Text color={theme.dim}> (in: ${estimatedCost.inputCost.toFixed(4)} / out: ${estimatedCost.outputCost.toFixed(4)})</Text>
-        )}
-      </Box>
-
-      {budgetLimit != null && (
+      {/* Workspace */}
+      {workspacePath && (
         <Box>
-          <Text color={theme.text}>Budget: </Text>
-          <Text color={budgetBlocked ? theme.error : budgetWarning ? theme.highlight : theme.success}>
-            ${budgetSpent.toFixed(4)} / ${budgetLimit.toFixed(4)} ({Math.round(budgetPercentage * 100)}% used)
-          </Text>
-          <Text color={budgetBlocked ? theme.error : budgetWarning ? theme.highlight : theme.success}>
-            {' '}[${budgetRemaining.toFixed(4)} remaining]
-          </Text>
-          {budgetBlocked && <Text color={theme.error}> ⛔ BLOCKED</Text>}
-          {budgetWarning && !budgetBlocked && <Text color={theme.highlight}> ⚠️</Text>}
+          <Text color={theme.dim}>📁 </Text>
+          <Text color={theme.accent}>{shortenPath(workspacePath)}</Text>
         </Box>
       )}
 
+      {/* Model */}
       <Box>
-        <Text color={theme.text}>Model: </Text>
+        <Text color={theme.dim}>🤖 </Text>
         <Text color={theme.accent}>{model}</Text>
       </Box>
 
+      {/* Provider */}
       {providerType != null && (
         <Box>
-          <Text color={theme.text}>Provider: </Text>
+          <Text color={theme.dim}>🔌 </Text>
           <Text color={providerType === 'cli' ? theme.highlight : theme.accent}>
-            {providerType === 'cli' ? 'Claude Code CLI' : 'API'}
+            {providerType === 'cli' ? 'Claude CLI' : 'API'}
           </Text>
         </Box>
       )}
 
-      {routedModel != null && routedModel !== model && (
-        <Box>
-          <Text color={theme.text}>Auto-routed: </Text>
-          <Text color={theme.highlight}>{routedModel}</Text>
-        </Box>
-      )}
-
+      {/* Pipeline */}
       {pipelineMode != null && (
         <Box>
-          <Text color={theme.text}>Pipeline: </Text>
+          <Text color={theme.dim}>⚙️  </Text>
           <Text color={theme.highlight}>{pipelineMode}</Text>
         </Box>
       )}
 
+      {/* Tokens */}
+      {hasTokens && (
+        <Box>
+          <Text color={theme.dim}>📈 </Text>
+          <Text color={theme.accent}>{inputTokens}</Text>
+          <Text color={theme.dim}> / </Text>
+          <Text color={theme.accent}>{outputTokens}</Text>
+          <Text color={theme.dim}> tok</Text>
+        </Box>
+      )}
+
+      {/* Cost */}
+      {hasTokens && (
+        <Box>
+          <Text color={theme.dim}>💰 </Text>
+          <Text color={theme.success}>${estimatedCost.totalCost.toFixed(4)}</Text>
+          {hasCostBreakdown && (
+            <Text color={theme.dim}> ({estimatedCost.inputCost.toFixed(3)}+{estimatedCost.outputCost.toFixed(3)})</Text>
+          )}
+        </Box>
+      )}
+
+      {/* Budget */}
+      {budgetLimit != null && (
+        <Box>
+          <Text color={theme.dim}>🎯 </Text>
+          <Text color={budgetBlocked ? theme.error : budgetWarning ? theme.highlight : theme.success}>
+            ${budgetSpent.toFixed(3)}/${budgetLimit.toFixed(2)} ({Math.round(budgetPercentage * 100)}%)
+          </Text>
+          {budgetBlocked && <Text color={theme.error}> ⛔</Text>}
+          {budgetWarning && !budgetBlocked && <Text color={theme.highlight}> ⚠️</Text>}
+        </Box>
+      )}
+
+      {/* Auto-routed model */}
+      {routedModel != null && routedModel !== model && (
+        <Box>
+          <Text color={theme.dim}>🔄 </Text>
+          <Text color={theme.highlight}>{routedModel}</Text>
+        </Box>
+      )}
+
+      {/* Session */}
       {sessionId != null && (
         <Box>
-          <Text color={theme.text}>Session: </Text>
-          <Text color={theme.accent}>{sessionTitle || sessionId}</Text>
+          <Text color={theme.dim}>📝 </Text>
+          <Text color={theme.accent}>{sessionTitle || sessionId.slice(0, 8)}</Text>
         </Box>
       )}
     </Box>

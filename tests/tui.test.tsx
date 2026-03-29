@@ -64,12 +64,12 @@ function makeAutoModeState(overrides?: Partial<AutoModeState>): AutoModeState {
 // ── Header ─────────────────────────────────────────────────────────
 
 describe('Header', () => {
-  it('renders branding text with ⛵ and ✦', () => {
+  it('renders branding text with ⛵', () => {
     const { lastFrame } = render(<Header />);
     const frame = lastFrame()!;
     expect(frame).toContain('⛵');
     expect(frame).toContain('Vela');
-    expect(frame).toContain('✦');
+    expect(frame).toContain('AI Development Agent');
   });
 
   it('renders decorative separator line', () => {

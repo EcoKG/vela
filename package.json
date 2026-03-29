@@ -13,7 +13,6 @@
     "dev": "tsx src/cli.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
     "@inkjs/ui": "^2.0.0",
     "better-sqlite3": "^11.0.0",
     "commander": "^12.0.0",
@@ -23,6 +22,7 @@
     "react": "^19.2.4"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@types/better-sqlite3": "^7.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.14",

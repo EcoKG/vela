@@ -167,7 +167,6 @@ export type { AuthProfile, AuthFileV2 } from './auth.js';
 
 // ── Claude client ──────────────────────────────────────────────────
 export {
-  createClaudeClient,
   sendMessage,
   extractToolUseBlocks,
   isToolUseResponse,

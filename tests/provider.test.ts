@@ -1,8 +1,9 @@
 /**
  * Tests for provider resolution module.
  *
- * Mocks resolveApiKey and isClaudeCodeReady via globalThis
- * indirection (K006 ESM mock pattern).
+ * After S01 simplification, resolveProvider() only checks
+ * isClaudeCodeReady() — API key resolution has been removed.
+ * Mocks isClaudeCodeReady via globalThis indirection (K006).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -10,14 +11,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 declare global {
   // eslint-disable-next-line no-var
-  var __mockResolveApiKey: () => string | null;
-  // eslint-disable-next-line no-var
   var __mockIsClaudeCodeReady: () => boolean;
 }
-
-vi.mock('../src/auth.js', () => ({
-  resolveApiKey: () => globalThis.__mockResolveApiKey(),
-}));
 
 vi.mock('../src/claude-code-readiness.js', () => ({
   isClaudeCodeReady: () => globalThis.__mockIsClaudeCodeReady(),
@@ -30,7 +25,6 @@ import { resolveProvider } from '../src/provider.js';
 
 describe('resolveProvider', () => {
   beforeEach(() => {
-    globalThis.__mockResolveApiKey = () => null;
     globalThis.__mockIsClaudeCodeReady = () => false;
   });
 
@@ -38,16 +32,7 @@ describe('resolveProvider', () => {
     vi.restoreAllMocks();
   });
 
-  it('returns api provider when API key is present', () => {
-    globalThis.__mockResolveApiKey = () => 'sk-test-key-123';
-
-    const provider = resolveProvider();
-
-    expect(provider).toEqual({ type: 'api', apiKey: 'sk-test-key-123' });
-  });
-
-  it('returns cli provider when no API key but CLI is ready', () => {
-    globalThis.__mockResolveApiKey = () => null;
+  it('returns cli provider when Claude Code CLI is ready', () => {
     globalThis.__mockIsClaudeCodeReady = () => true;
 
     const provider = resolveProvider();
@@ -55,21 +40,11 @@ describe('resolveProvider', () => {
     expect(provider).toEqual({ type: 'cli' });
   });
 
-  it('throws when neither API key nor CLI is available', () => {
-    globalThis.__mockResolveApiKey = () => null;
+  it('throws when Claude Code CLI is not available', () => {
     globalThis.__mockIsClaudeCodeReady = () => false;
 
     expect(() => resolveProvider()).toThrow(
-      'No API key found and Claude Code CLI is not available. Set ANTHROPIC_API_KEY or install Claude Code CLI.',
+      'Claude Code CLI is not available. Install Claude Code CLI to use Vela.',
     );
-  });
-
-  it('prioritizes API key even when CLI is also ready', () => {
-    globalThis.__mockResolveApiKey = () => 'sk-both-available';
-    globalThis.__mockIsClaudeCodeReady = () => true;
-
-    const provider = resolveProvider();
-
-    expect(provider).toEqual({ type: 'api', apiKey: 'sk-both-available' });
   });
 });

@@ -61,16 +61,16 @@ describe('MessageList', () => {
 // ── ChatInput ──────────────────────────────────────────────────────
 
 describe('ChatInput', () => {
-  it('renders > prompt prefix', () => {
+  it('renders ❯ prompt prefix', () => {
     const { lastFrame } = render(<ChatInput onSubmit={() => {}} />);
     const frame = lastFrame()!;
-    expect(frame).toContain('>');
+    expect(frame).toContain('❯');
   });
 
   it('renders placeholder text when empty', () => {
     const { lastFrame } = render(<ChatInput onSubmit={() => {}} />);
     const frame = lastFrame()!;
-    expect(frame).toContain('Type a message...');
+    expect(frame).toContain('메시지를 입력하세요');
   });
 });
 

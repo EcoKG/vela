@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ── Mock state ────────────────────────────────────────────────
 
-/** Mock for SDK query(). Receives the params object from query({ prompt, options }). */
+/** Mock for SDK query(). */
 let mockQuery: (params: { prompt: string; options?: Record<string, unknown> }) => AsyncGenerator<any, void>;
 
 /** Mock for getClaudePath(). */
@@ -31,7 +31,8 @@ vi.mock('../src/claude-code-readiness.js', () => ({
 }));
 
 // Import after mocks
-import { sendMessageViaCli } from '../src/claude-code-adapter.js';
+import { sendMessage } from '../src/llm.js';
+import type { ChatMessage, SendMessageOptions } from '../src/llm.js';
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ function resultMessage(
 
 // ── Tests ─────────────────────────────────────────────────────
 
-describe('sendMessageViaCli', () => {
+describe('sendMessage (llm.ts)', () => {
   beforeEach(() => {
     sdkImportShouldFail = false;
     sdkImportError = null;
@@ -86,54 +87,49 @@ describe('sendMessageViaCli', () => {
     mockQuery = () => asyncIter([]);
   });
 
+  // 1. Text streaming via onText callback
   it('streams text from SDKAssistantMessage via onText callback', async () => {
-    const fullText = 'Hello from CLI!';
+    const fullText = 'Hello from the LLM!';
     mockQuery = () => asyncIter([
       assistantMessage(fullText),
       resultMessage(fullText),
     ]);
 
     const chunks: string[] = [];
-    const result = await sendMessageViaCli(
+    const result = await sendMessage(
       [{ role: 'user', content: 'Hi' }],
       { onText: (t) => chunks.push(t) },
     );
 
     expect(chunks.join('')).toBe(fullText);
-    expect(result.type).toBe('message');
-    expect(result.role).toBe('assistant');
-    expect(result.stop_reason).toBe('end_turn');
     expect(result.content).toHaveLength(1);
     expect(result.content[0]).toEqual({ type: 'text', text: fullText, citations: null });
   });
 
-  it('returns Message with correct usage data from result event', async () => {
-    const usage = { input_tokens: 42, output_tokens: 100 };
+  // 2. Usage extraction — result overrides assistant (K017)
+  it('returns usage from result event, overriding assistant usage', async () => {
+    const resultUsage = { input_tokens: 42, output_tokens: 100 };
     mockQuery = () => asyncIter([
       assistantMessage('test', { input_tokens: 5, output_tokens: 8 }),
-      resultMessage('test', usage),
+      resultMessage('test', resultUsage),
     ]);
 
-    const result = await sendMessageViaCli([
-      { role: 'user', content: 'Hi' },
-    ]);
+    const result = await sendMessage([{ role: 'user', content: 'Hi' }]);
 
-    // Result usage should override assistant usage
     expect(result.usage.input_tokens).toBe(42);
     expect(result.usage.output_tokens).toBe(100);
   });
 
+  // 3. Message shape compatibility
   it('returns Anthropic Message-compatible shape', async () => {
     mockQuery = () => asyncIter([
       assistantMessage('response'),
       resultMessage('response'),
     ]);
 
-    const result = await sendMessageViaCli([
-      { role: 'user', content: 'Hi' },
-    ]);
+    const result = await sendMessage([{ role: 'user', content: 'Hi' }]);
 
-    expect(result.id).toMatch(/^cli-/);
+    expect(result.id).toMatch(/^vela-/);
     expect(result.type).toBe('message');
     expect(result.role).toBe('assistant');
     expect(result.model).toBe('claude-sonnet-4-20250514');
@@ -142,13 +138,14 @@ describe('sendMessageViaCli', () => {
     expect(result.usage).toBeDefined();
   });
 
+  // 4. Result-only text fallback (no assistant streaming)
   it('uses result.result text when no assistant message text was streamed', async () => {
     mockQuery = () => asyncIter([
       resultMessage('Result only text'),
     ]);
 
     const chunks: string[] = [];
-    const result = await sendMessageViaCli(
+    const result = await sendMessage(
       [{ role: 'user', content: 'Hi' }],
       { onText: (t) => chunks.push(t) },
     );
@@ -157,14 +154,15 @@ describe('sendMessageViaCli', () => {
     expect(result.content[0].text).toBe('Result only text');
   });
 
-  it('extracts only the last user message prompt', async () => {
+  // 5. Prompt extraction — last user message (string)
+  it('extracts only the last user message as prompt', async () => {
     let capturedPrompt = '';
     mockQuery = (params) => {
       capturedPrompt = params.prompt;
       return asyncIter([resultMessage('')]);
     };
 
-    await sendMessageViaCli([
+    await sendMessage([
       { role: 'user', content: 'First message' },
       { role: 'assistant', content: 'Reply' },
       { role: 'user', content: 'Second message' },
@@ -173,6 +171,7 @@ describe('sendMessageViaCli', () => {
     expect(capturedPrompt).toBe('Second message');
   });
 
+  // 6. Prompt extraction — ContentBlock[] user message
   it('extracts text from ContentBlock[] user message', async () => {
     let capturedPrompt = '';
     mockQuery = (params) => {
@@ -180,7 +179,7 @@ describe('sendMessageViaCli', () => {
       return asyncIter([resultMessage('')]);
     };
 
-    await sendMessageViaCli([
+    await sendMessage([
       {
         role: 'user',
         content: [
@@ -193,25 +192,109 @@ describe('sendMessageViaCli', () => {
     expect(capturedPrompt).toBe('Part one\nPart two');
   });
 
-  it('throws descriptive error when SDK is not installed', async () => {
-    sdkImportShouldFail = true;
-    sdkImportError = new Error(
-      "Cannot find module '@anthropic-ai/claude-agent-sdk'",
+  // 7. Model and system prompt passthrough
+  it('passes model, system prompt, and maxTurns to query options', async () => {
+    let capturedOpts: Record<string, unknown> = {};
+    mockQuery = (params) => {
+      capturedOpts = (params.options ?? {}) as Record<string, unknown>;
+      return asyncIter([resultMessage('')]);
+    };
+
+    await sendMessage(
+      [{ role: 'user', content: 'Hi' }],
+      { model: 'claude-opus-4-20250514', system: 'You are a pirate.', maxTurns: 3 },
     );
 
+    expect(capturedOpts.model).toBe('claude-opus-4-20250514');
+    expect(capturedOpts.systemPrompt).toBe('You are a pirate.');
+    expect(capturedOpts.maxTurns).toBe(3);
+    expect(capturedOpts.permissionMode).toBe('bypassPermissions');
+  });
+
+  // 8. Error on SDK not installed
+  it('throws descriptive error when SDK is not installed', async () => {
+    sdkImportShouldFail = true;
+    sdkImportError = new Error("Cannot find module '@anthropic-ai/claude-agent-sdk'");
+
     await expect(
-      sendMessageViaCli([{ role: 'user', content: 'Hi' }]),
+      sendMessage([{ role: 'user', content: 'Hi' }]),
     ).rejects.toThrow('Claude Code CLI SDK not installed');
   });
 
-  it('logs SDK import failure to stderr', async () => {
+  // 9. Error on query failure
+  it('re-throws query errors with context', async () => {
+    mockQuery = () => {
+      async function* failingStream(): AsyncGenerator<any, void> {
+        throw new Error('Connection reset');
+      }
+      return failingStream();
+    };
+
+    await expect(
+      sendMessage([{ role: 'user', content: 'Hi' }]),
+    ).rejects.toThrow('LLM query failed: Connection reset');
+  });
+
+  // 10. Empty response
+  it('handles empty response (no content)', async () => {
+    mockQuery = () => asyncIter([resultMessage('')]);
+
+    const result = await sendMessage([{ role: 'user', content: 'Hi' }]);
+
+    expect(result.content).toHaveLength(0);
+  });
+
+  // 11. claudePath passthrough
+  it('passes claudePath from getClaudePath to query', async () => {
+    mockGetClaudePath = () => '/opt/custom/claude';
+    let capturedOpts: Record<string, unknown> = {};
+    mockQuery = (params) => {
+      capturedOpts = (params.options ?? {}) as Record<string, unknown>;
+      return asyncIter([resultMessage('')]);
+    };
+
+    await sendMessage([{ role: 'user', content: 'Hi' }]);
+
+    expect(capturedOpts.pathToClaudeCodeExecutable).toBe('/opt/custom/claude');
+  });
+
+  // 12. claudePath null omission
+  it('omits pathToClaudeCodeExecutable when getClaudePath returns null', async () => {
+    mockGetClaudePath = () => null;
+    let capturedOpts: Record<string, unknown> = {};
+    mockQuery = (params) => {
+      capturedOpts = (params.options ?? {}) as Record<string, unknown>;
+      return asyncIter([resultMessage('')]);
+    };
+
+    await sendMessage([{ role: 'user', content: 'Hi' }]);
+
+    expect(capturedOpts).not.toHaveProperty('pathToClaudeCodeExecutable');
+  });
+
+  // 13. Default maxTurns
+  it('defaults maxTurns to 1 when not specified', async () => {
+    let capturedOpts: Record<string, unknown> = {};
+    mockQuery = (params) => {
+      capturedOpts = (params.options ?? {}) as Record<string, unknown>;
+      return asyncIter([resultMessage('')]);
+    };
+
+    await sendMessage([{ role: 'user', content: 'Hi' }]);
+
+    expect(capturedOpts.maxTurns).toBe(1);
+    expect(capturedOpts.allowDangerouslySkipPermissions).toBe(true);
+  });
+
+  // 14. Logs SDK import failure to stderr
+  it('logs SDK import failure to stderr with Vela prefix', async () => {
     sdkImportShouldFail = true;
     const stderrSpy = vi
       .spyOn(process.stderr, 'write')
       .mockImplementation(() => true);
 
     try {
-      await sendMessageViaCli([{ role: 'user', content: 'Hi' }]);
+      await sendMessage([{ role: 'user', content: 'Hi' }]);
     } catch {
       // expected
     }
@@ -222,92 +305,14 @@ describe('sendMessageViaCli', () => {
     stderrSpy.mockRestore();
   });
 
-  it('re-throws query errors with context', async () => {
-    mockQuery = () => {
-      async function* failingStream(): AsyncGenerator<any, void> {
-        throw new Error('Connection reset');
-      }
-      return failingStream();
-    };
-
-    await expect(
-      sendMessageViaCli([{ role: 'user', content: 'Hi' }]),
-    ).rejects.toThrow('Claude Code CLI query failed: Connection reset');
-  });
-
-  it('handles empty response (no content)', async () => {
-    mockQuery = () => asyncIter([resultMessage('')]);
-
-    const result = await sendMessageViaCli([
-      { role: 'user', content: 'Hi' },
-    ]);
-
-    expect(result.content).toHaveLength(0);
-  });
-
+  // 15. Empty messages array
   it('handles empty messages array gracefully', async () => {
     mockQuery = (params) => {
       expect(params.prompt).toBe('');
       return asyncIter([resultMessage('')]);
     };
 
-    const result = await sendMessageViaCli([]);
+    const result = await sendMessage([]);
     expect(result.type).toBe('message');
-  });
-
-  it('passes model and system prompt to query options', async () => {
-    let capturedOpts: Record<string, unknown> = {};
-    mockQuery = (params) => {
-      capturedOpts = (params.options ?? {}) as Record<string, unknown>;
-      return asyncIter([resultMessage('')]);
-    };
-
-    await sendMessageViaCli(
-      [{ role: 'user', content: 'Hi' }],
-      { model: 'claude-opus-4-20250514', system: 'You are a pirate.' },
-    );
-
-    expect(capturedOpts.model).toBe('claude-opus-4-20250514');
-    expect(capturedOpts.systemPrompt).toBe('You are a pirate.');
-    expect(capturedOpts.permissionMode).toBe('bypassPermissions');
-  });
-
-  it('passes claude binary path from getClaudePath to query', async () => {
-    mockGetClaudePath = () => '/opt/custom/claude';
-    let capturedOpts: Record<string, unknown> = {};
-    mockQuery = (params) => {
-      capturedOpts = (params.options ?? {}) as Record<string, unknown>;
-      return asyncIter([resultMessage('')]);
-    };
-
-    await sendMessageViaCli([{ role: 'user', content: 'Hi' }]);
-
-    expect(capturedOpts.pathToClaudeCodeExecutable).toBe('/opt/custom/claude');
-  });
-
-  it('omits pathToClaudeCodeExecutable when getClaudePath returns null', async () => {
-    mockGetClaudePath = () => null;
-    let capturedOpts: Record<string, unknown> = {};
-    mockQuery = (params) => {
-      capturedOpts = (params.options ?? {}) as Record<string, unknown>;
-      return asyncIter([resultMessage('')]);
-    };
-
-    await sendMessageViaCli([{ role: 'user', content: 'Hi' }]);
-
-    expect(capturedOpts).not.toHaveProperty('pathToClaudeCodeExecutable');
-  });
-
-  it('sets maxTurns: 1 and allowDangerouslySkipPermissions: true', async () => {
-    let capturedOpts: Record<string, unknown> = {};
-    mockQuery = (params) => {
-      capturedOpts = (params.options ?? {}) as Record<string, unknown>;
-      return asyncIter([resultMessage('')]);
-    };
-
-    await sendMessageViaCli([{ role: 'user', content: 'Hi' }]);
-
-    expect(capturedOpts.maxTurns).toBe(1);
-    expect(capturedOpts.allowDangerouslySkipPermissions).toBe(true);
   });
 });

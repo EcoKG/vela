@@ -10,41 +10,31 @@ export interface ToolCallInfo {
   gateCode?: string;
 }
 
-const STATUS_ICONS: Record<ToolCallInfo['status'], { icon: string; color: string }> = {
-  running: { icon: '🔧', color: theme.toolRunning },
-  complete: { icon: '✅', color: theme.toolComplete },
-  blocked: { icon: '⛔', color: theme.toolBlocked },
+const STATUS_MARKERS: Record<ToolCallInfo['status'], { icon: string; color: string }> = {
+  running: { icon: '⏳', color: theme.toolRunning },
+  complete: { icon: '✓', color: theme.toolComplete },
+  blocked: { icon: '✗', color: theme.toolBlocked },
 };
 
-/** Truncate multiline text to maxLines, appending an ellipsis indicator. */
-function truncateLines(text: string, maxLines: number): string {
-  const lines = text.split('\n');
-  if (lines.length <= maxLines) return text;
-  return lines.slice(0, maxLines).join('\n') + '\n…';
+/** Show first line of result, truncated to maxLen. */
+function summarizeResult(text: string, maxLen = 60): string {
+  const firstLine = text.split('\n')[0] ?? '';
+  if (firstLine.length <= maxLen) return firstLine;
+  return firstLine.slice(0, maxLen - 1) + '…';
 }
 
 export function ToolCallBlock({ toolCall }: { toolCall: ToolCallInfo }) {
-  const { icon, color } = STATUS_ICONS[toolCall.status];
+  const { icon, color } = STATUS_MARKERS[toolCall.status];
 
   return (
-    <Box flexDirection="column" marginTop={1}>
-      <Box>
-        <Text>
-          {icon}{' '}
-        </Text>
-        <Text color={color} bold>
-          {toolCall.name}
-        </Text>
-        {toolCall.status === 'blocked' && toolCall.gateCode ? (
-          <Text color={theme.toolBlocked}> [{toolCall.gateCode}]</Text>
-        ) : null}
-      </Box>
+    <Box>
+      <Text color={color}>{icon} </Text>
+      <Text color={color} bold>{toolCall.name}</Text>
+      {toolCall.status === 'blocked' && toolCall.gateCode ? (
+        <Text color={theme.toolBlocked}> [{toolCall.gateCode}]</Text>
+      ) : null}
       {toolCall.status === 'complete' && toolCall.result ? (
-        <Box marginLeft={2}>
-          <Text color={toolCall.isError ? theme.error : theme.dim}>
-            {truncateLines(toolCall.result, 3)}
-          </Text>
-        </Box>
+        <Text color={toolCall.isError ? theme.error : theme.dim}> {summarizeResult(toolCall.result)}</Text>
       ) : null}
     </Box>
   );
